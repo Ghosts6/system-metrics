@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "system-metrics-backend"
+version = "0.1.0"
+description = "Backend for System Metrics and Log Analytics Platform"
+authors = ["Kiarash Bashokian <kiarash.bashokian2024@gmail.com>"]
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+psutil = "^5.9.8"
+sqlalchemy = "^2.0.29"
+redis = "^5.0.4"
+# Add psycopg2-binary for postgres support as an extra
+psycopg2-binary = {version = "^2.9.9", optional = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+httpx = "^0.27.0" # HTTPX is a great async-capable client for testing FastAPI
+
+[tool.poetry.extras]
+postgres = ["psycopg2-binary"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,24 @@
+# This Dockerfile is for creating a development and testing environment.
+# It includes all dependencies, including development tools like pytest.
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install poetry
+RUN pip install poetry
+
+# Copy project files
+COPY backend/pyproject.toml ./
+COPY backend/poetry.lock* ./
+
+# Install ALL dependencies (including dev)
+RUN poetry config virtualenvs.create false && \
+    poetry install --no-root
+
+# Copy the application and test code so it's available in the container
+COPY backend/app ./app
+COPY backend/tests ./tests
+
+# The default command will run the tests
+CMD ["pytest"]

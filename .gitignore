@@ -1,0 +1,69 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Python/FastAPI
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+.coverage
+htmlcov/
+
+# python build
+build/
+dist/
+*.egg-info/
+poetry.lock
+
+# Qt/C++
+build*/
+cmake-build*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Qt tools
+*.pro.user
+*.qmlc
+*.jsc
+
+# C/native
+*.a
+*.so
+*.dylib
+*.dll
+
+# Docker
+*.log
+docker.env
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Redis
+dump.rdb
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ETC
+logs/
+tmp/
+doc/
