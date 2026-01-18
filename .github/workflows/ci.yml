@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Create docker.env file
+      run: |
+        cat > docker.env << EOF
+        POSTGRES_DB=system_metrics
+        POSTGRES_USER=user
+        POSTGRES_PASSWORD=password
+        DATABASE_URL=postgresql://user:password@db:5432/system_metrics
+        REDIS_HOST=redis
+        REDIS_PORT=6379
+        SECRET_KEY=test-secret-key-for-ci
+        EOF
+    
+    - name: Build and start services
+      run: |
+        docker-compose up -d db redis
+        sleep 5
+    
+    - name: Run tests
+      run: |
+        docker-compose run --rm test pytest -v --tb=short -W ignore::PendingDeprecationWarning
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose down -v
