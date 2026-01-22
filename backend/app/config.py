@@ -25,9 +25,8 @@ class Settings(BaseSettings):
     # Metrics collection settings
     metrics_collection_interval: int = int(os.getenv("METRICS_COLLECTION_INTERVAL", "5"))  # seconds
     metrics_retention_days: int = int(os.getenv("METRICS_RETENTION_DAYS", "30"))
-    
-    # Redis cache settings
-    cache_ttl: int = int(os.getenv("CACHE_TTL", "60"))  # seconds
+    metrics_collector: str = os.getenv("METRICS_COLLECTOR", "psutil")  # psutil or c-collector
+    c_collector_path: Optional[str] = os.getenv("C_COLLECTOR_PATH", None)  # Path to C collector binary
     
     model_config = ConfigDict(
         env_file=".env",

@@ -26,7 +26,8 @@ build*/
 cmake-build*/
 CMakeFiles/
 CMakeCache.txt
-Makefile
+build*/Makefile
+cmake-build*/Makefile
 *.o
 *.obj
 *.exe
@@ -43,6 +44,11 @@ Makefile
 *.so
 *.dylib
 *.dll
+
+# Collector-C build artifacts
+collector-c/collector
+collector-c/collector.exe
+collector-c/src/*.o
 
 # Docker
 *.log

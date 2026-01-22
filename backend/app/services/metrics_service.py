@@ -1,11 +1,15 @@
 import psutil
 import socket
 import platform
+import json
+import subprocess
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 from app.schemas import SystemMetricsCreate
 from app.models import SystemMetrics
 from app.services.cache_service import cache_service
+from app.config import settings
 from sqlalchemy.orm import Session
 
 
@@ -13,8 +17,8 @@ class MetricsService:
     """Service for collecting and managing system metrics."""
     
     @staticmethod
-    def collect_metrics() -> SystemMetricsCreate:
-        """Collect current system metrics using psutil."""
+    def _collect_with_psutil() -> SystemMetricsCreate:
+        """Collect metrics using psutil (Python)."""
         # CPU metrics
         cpu_percent = psutil.cpu_percent(interval=0.1)
         cpu_count = psutil.cpu_count()
@@ -65,6 +69,73 @@ class MetricsService:
             hostname=hostname,
             platform=platform_name
         )
+    
+    @staticmethod
+    def _collect_with_c_collector() -> Optional[SystemMetricsCreate]:
+        """Collect metrics using C collector binary."""
+        collector_path = settings.c_collector_path
+        
+        if not collector_path:
+            default_paths = [
+                "./collector-c/collector",
+                "../collector-c/collector",
+                "/usr/local/bin/collector",
+                "collector"
+            ]
+            for path in default_paths:
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    collector_path = path
+                    break
+        
+        if not collector_path or not os.path.isfile(collector_path):
+            return None
+        
+        try:
+            result = subprocess.run(
+                [collector_path, "--output"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=True
+            )
+            
+            metrics_json = json.loads(result.stdout.strip())
+            
+            return SystemMetricsCreate(
+                cpu_percent=float(metrics_json.get("cpu_percent", 0)),
+                cpu_count=int(metrics_json.get("cpu_count", 0)),
+                cpu_freq_current=float(metrics_json.get("cpu_freq_current")) if metrics_json.get("cpu_freq_current") else None,
+                cpu_freq_min=float(metrics_json.get("cpu_freq_min")) if metrics_json.get("cpu_freq_min") else None,
+                cpu_freq_max=float(metrics_json.get("cpu_freq_max")) if metrics_json.get("cpu_freq_max") else None,
+                memory_total=int(metrics_json.get("memory_total", 0)),
+                memory_available=int(metrics_json.get("memory_available", 0)),
+                memory_used=int(metrics_json.get("memory_used", 0)),
+                memory_percent=float(metrics_json.get("memory_percent", 0)),
+                disk_total=int(metrics_json.get("disk_total", 0)),
+                disk_used=int(metrics_json.get("disk_used", 0)),
+                disk_free=int(metrics_json.get("disk_free", 0)),
+                disk_percent=float(metrics_json.get("disk_percent", 0)),
+                network_bytes_sent=int(metrics_json.get("network_bytes_sent")) if metrics_json.get("network_bytes_sent") else None,
+                network_bytes_recv=int(metrics_json.get("network_bytes_recv")) if metrics_json.get("network_bytes_recv") else None,
+                hostname=metrics_json.get("hostname"),
+                platform=metrics_json.get("platform")
+            )
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, json.JSONDecodeError, KeyError, ValueError) as e:
+            return None
+    
+    @staticmethod
+    def collect_metrics() -> SystemMetricsCreate:
+        """Collect current system metrics using configured collector."""
+        if settings.metrics_collector == "c-collector":
+            metrics = MetricsService._collect_with_c_collector()
+            if metrics:
+                return metrics
+            else:
+                # Fallback to psutil if C collector fails
+                return MetricsService._collect_with_psutil()
+        else:
+            # Default to psutil
+            return MetricsService._collect_with_psutil()
     
     @staticmethod
     def save_metrics(db: Session, metrics: SystemMetricsCreate) -> SystemMetrics:

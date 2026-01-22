@@ -2,15 +2,23 @@
 
 Cross-platform system metrics and log analytics platform.
 
-Architecture:
+## Architecture
+
 - Qt (C++) desktop client
 - FastAPI backend service
 - Redis for live-state caching
 - SQLite/PostgreSQL for persistence
-- Optional low-level C collectors
+- low-level C collectors
 
-Status: early design and setup phase.
+## Documentation
+
+- [API Documentation](docs/api.md) - REST API endpoints
+- [Setup Guide](docs/setup.md) - Docker setup and testing
+- [C Collector](docs/collector.md) - C metrics collector and backend integration
+
+## Status
+
+Backend and C collector are implemented and tested. Qt client is in development.
 
 This repository is treated as a production-grade internal system.
-Details may change as the architecture is finalized.
 
