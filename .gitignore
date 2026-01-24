@@ -38,6 +38,7 @@ cmake-build*/Makefile
 *.pro.user
 *.qmlc
 *.jsc
+CMakeLists.txt.user
 
 # C/native
 *.a
