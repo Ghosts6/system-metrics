@@ -32,5 +32,14 @@ services:
       - backend
     command: ["--url", "http://backend:8000", "--interval", "5"]
 
+  test:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev
+    env_file:
+      - ./docker.env
+    depends_on:
+      - db
+
 volumes:
   postgres_data:

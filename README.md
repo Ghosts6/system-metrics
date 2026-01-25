@@ -1,8 +1,7 @@
-<div align="center">
-  <img src="client/resources/logo.png" alt="System Metrics Logo" width="32" height="32" style="vertical-align: middle; margin-right: 10px;">
-  <h1 style="display: inline-block; margin: 0; vertical-align: middle; line-height: 32px;">system-metrics</h1>
+<div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+  <img src="client/resources/logo.png" alt="System Metrics Logo" width="32" height="32">
+  <h1 style="margin: 0;">system-metrics</h1>
 </div>
-
 
 
 ## Architecture
