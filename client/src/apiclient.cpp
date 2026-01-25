@@ -67,7 +67,8 @@ void ApiClient::fetchMetricsHistory(int page, int pageSize,
 }
 
 void ApiClient::fetchLogs(int page, int pageSize, const QString &level,
-                          const QDateTime &startTime, const QDateTime &endTime)
+                          const QDateTime &startTime, const QDateTime &endTime,
+                          const QString &search)
 {
     QMap<QString, QString> params;
     params["page"] = QString::number(page);
@@ -81,6 +82,9 @@ void ApiClient::fetchLogs(int page, int pageSize, const QString &level,
     }
     if (endTime.isValid()) {
         params["end_time"] = endTime.toUTC().toString(Qt::ISODate);
+    }
+    if (!search.isEmpty()) {
+        params["search"] = search;
     }
 
     QUrl url = buildUrl("api/v1/logs/", params);

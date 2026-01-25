@@ -86,25 +86,83 @@ QString Style::getDarkGreenStyleSheet()
             background-color: #2d2d2d;
             border: 2px solid #3d3d3d;
             border-radius: 4px;
-            padding: 6px;
+            padding: 6px 8px;
+            padding-right: 30px;
             color: #e0e0e0;
             min-width: 120px;
+            font-size: 12px;
+            selection-background-color: #0d7377;
+            selection-color: #ffffff;
         }
         
         QComboBox:hover {
             border: 2px solid #0d7377;
+            background-color: #333333;
+        }
+        
+        QComboBox:focus {
+            border: 2px solid #14a085;
+            background-color: #2d2d2d;
+        }
+        
+        QComboBox:disabled {
+            background-color: #1a1a1a;
+            color: #808080;
+            border: 2px solid #2d2d2d;
         }
         
         QComboBox::drop-down {
-            border: none;
-            width: 20px;
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 25px;
+            border-left: 1px solid #3d3d3d;
+            border-top-right-radius: 4px;
+            border-bottom-right-radius: 4px;
+            background-color: #2d2d2d;
+        }
+        
+        QComboBox::drop-down:hover {
+            background-color: #333333;
+        }
+        
+        QComboBox::down-arrow {
+            width: 12px;
+            height: 12px;
+            image: none;
+            border-left: 3px solid transparent;
+            border-right: 3px solid transparent;
+            border-top: 5px solid #e0e0e0;
+        }
+        
+        QComboBox::down-arrow:hover {
+            border-top-color: #14a085;
         }
         
         QComboBox QAbstractItemView {
             background-color: #2d2d2d;
             color: #e0e0e0;
             selection-background-color: #0d7377;
+            selection-color: #ffffff;
             border: 1px solid #3d3d3d;
+            border-radius: 4px;
+            padding: 2px;
+            outline: none;
+        }
+        
+        QComboBox QAbstractItemView::item {
+            padding: 6px 8px;
+            border-radius: 2px;
+            min-height: 20px;
+        }
+        
+        QComboBox QAbstractItemView::item:hover {
+            background-color: #14a085;
+            color: #ffffff;
+        }
+        
+        QComboBox QAbstractItemView::item:selected {
+            background-color: #0d7377;
+            color: #ffffff;
         }
         
         QStatusBar {
@@ -131,7 +189,6 @@ QString Style::getButtonStyle()
         
         QPushButton:hover {
             background-color: #14a085;
-            transform: scale(1.05);
         }
         
         QPushButton:pressed {

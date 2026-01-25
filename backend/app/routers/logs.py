@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from app.database import get_db
 from app.schemas import SystemLogCreate, SystemLogResponse, SystemLogListResponse
 from app.models import SystemLog
@@ -31,12 +31,14 @@ def get_logs(
     level: Optional[str] = Query(None, description="Filter by log level"),
     start_time: Optional[datetime] = Query(None, description="Start time for filtering"),
     end_time: Optional[datetime] = Query(None, description="End time for filtering"),
+    search: Optional[str] = Query(None, description="Search in message and source fields"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
     db: Session = Depends(get_db)
 ):
     """
     Get system logs with filtering and pagination.
+    Supports searching in message and source fields.
     """
     try:
         query = db.query(SystemLog)
@@ -47,6 +49,15 @@ def get_logs(
             query = query.filter(SystemLog.timestamp >= start_time)
         if end_time:
             query = query.filter(SystemLog.timestamp <= end_time)
+        if search:
+            # Search in both message and source fields (case-insensitive)
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    SystemLog.message.ilike(search_pattern),
+                    SystemLog.source.ilike(search_pattern)
+                )
+            )
         
         # Get total count
         total = query.count()

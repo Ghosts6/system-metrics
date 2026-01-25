@@ -28,7 +28,8 @@ public:
     void fetchLogs(int page = 1, int pageSize = 100, 
                    const QString &level = QString(),
                    const QDateTime &startTime = QDateTime(), 
-                   const QDateTime &endTime = QDateTime());
+                   const QDateTime &endTime = QDateTime(),
+                   const QString &search = QString());
     void createLog(const QString &level, const QString &message, 
                    const QString &source = QString());
     void checkHealth();

@@ -13,10 +13,24 @@ find_package(Qt6 COMPONENTS Core Gui Widgets Network Charts Concurrent REQUIRED)
 add_executable(system-metrics-client
     src/main.cpp
     src/apiclient.cpp
+    src/apiclient.h
     src/metricswidget.cpp
+    src/metricswidget.h
+    src/metricschartwidget.cpp
+    src/metricschartwidget.h
     src/logviewer.cpp
+    src/logviewer.h
+    src/dashboardwidget.cpp
+    src/dashboardwidget.h
+    src/systeminfowidget.cpp
+    src/systeminfowidget.h
+    src/settingsdialog.cpp
+    src/settingsdialog.h
     src/style.cpp
+    src/style.h
     src/animatedbutton.cpp
+    src/animatedbutton.h
+    resources/resources.qrc
 )
 
 target_link_libraries(system-metrics-client PRIVATE
