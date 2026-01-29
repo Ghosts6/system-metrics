@@ -10,6 +10,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 COMPONENTS Core Gui Widgets Network Charts Concurrent REQUIRED)
 
+# Set RPATH for build and install
+if(UNIX)
+    get_target_property(QT_LIB_DIR Qt6::Core LOCATION)
+    get_filename_component(QT_LIB_DIR ${QT_LIB_DIR} DIRECTORY)
+    SET(CMAKE_INSTALL_RPATH "${QT_LIB_DIR}")
+    SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    SET(CMAKE_SKIP_INSTALL_RPATH  FALSE)
+endif()
+
 add_executable(system-metrics-client
     src/main.cpp
     src/apiclient.cpp
