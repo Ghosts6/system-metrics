@@ -484,6 +484,50 @@ int get_network_metrics(SystemMetrics *metrics) {
 
 #endif
 
+
+#ifdef __linux__
+
+int get_uptime_metrics(SystemMetrics *metrics) {
+    struct sysinfo s_info;
+    if (sysinfo(&s_info) != 0) {
+        return -1;
+    }
+    metrics->uptime_seconds = (double)s_info.uptime;
+    return 0;
+}
+
+#elif defined(__APPLE__)
+
+#include <sys/sysctl.h>
+
+int get_uptime_metrics(SystemMetrics *metrics) {
+    struct timeval boottime;
+    size_t len = sizeof(boottime);
+    if (sysctlbyname("kern.boottime", &boottime, &len, NULL, 0) == -1) {
+        return -1;
+    }
+    time_t now;
+    time(&now);
+    metrics->uptime_seconds = difftime(now, boottime.tv_sec);
+    return 0;
+}
+
+#elif defined(_WIN32)
+
+int get_uptime_metrics(SystemMetrics *metrics) {
+    metrics->uptime_seconds = (double)GetTickCount64() / 1000.0;
+    return 0;
+}
+
+#else
+
+int get_uptime_metrics(SystemMetrics *metrics) {
+    metrics->uptime_seconds = 0.0;
+    return 0;
+}
+
+#endif
+
 int collect_metrics(SystemMetrics *metrics) {
     memset(metrics, 0, sizeof(SystemMetrics));
     
@@ -492,6 +536,8 @@ int collect_metrics(SystemMetrics *metrics) {
     if (get_memory_metrics(metrics) != 0) return -1;
     if (get_disk_metrics(metrics) != 0) return -1;
     if (get_network_metrics(metrics) != 0) return -1;
+    if (get_uptime_metrics(metrics) != 0) return -1;
     
     return 0;
 }
+

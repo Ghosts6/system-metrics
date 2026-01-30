@@ -25,6 +25,7 @@ typedef struct {
     
     char hostname[256];
     char platform[64];
+    double uptime_seconds;
 } SystemMetrics;
 
 int collect_metrics(SystemMetrics *metrics);

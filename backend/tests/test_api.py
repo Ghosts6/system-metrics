@@ -3,6 +3,30 @@ from fastapi.testclient import TestClient
 from app.services.metrics_service import metrics_service
 
 
+def get_test_metrics_data():
+    """Helper to generate valid SystemMetricsCreate data."""
+    return {
+        "cpu_percent": 10.5,
+        "cpu_count": 4,
+        "cpu_freq_current": 2500.0,
+        "cpu_freq_min": 800.0,
+        "cpu_freq_max": 3000.0,
+        "memory_total": 8589934592,  # 8 GB
+        "memory_available": 4294967296, # 4 GB
+        "memory_used": 4294967296, # 4 GB
+        "memory_percent": 50.0,
+        "disk_total": 536870912000, # 500 GB
+        "disk_used": 268435456000, # 250 GB
+        "disk_free": 268435456000, # 250 GB
+        "disk_percent": 50.0,
+        "network_bytes_sent": 100000,
+        "network_bytes_recv": 200000,
+        "hostname": "test-host",
+        "platform": "Linux",
+        "uptime_seconds": 3600.0
+    }
+
+
 def test_metrics_live_endpoint(client: TestClient):
     """Test live metrics endpoint."""
     response = client.get("/api/v1/metrics/live")
@@ -27,7 +51,8 @@ def test_metrics_live_endpoint(client: TestClient):
 
 def test_metrics_collect_endpoint(client: TestClient):
     """Test metrics collection endpoint."""
-    response = client.post("/api/v1/metrics/collect")
+    metrics_data = get_test_metrics_data()
+    response = client.post("/api/v1/metrics/collect", json=metrics_data)
     assert response.status_code == 201
     data = response.json()
     
@@ -41,8 +66,9 @@ def test_metrics_collect_endpoint(client: TestClient):
 def test_metrics_history_endpoint(client: TestClient):
     """Test metrics history endpoint."""
     # First, create some metrics
-    client.post("/api/v1/metrics/collect")
-    client.post("/api/v1/metrics/collect")
+    metrics_data = get_test_metrics_data()
+    client.post("/api/v1/metrics/collect", json=metrics_data)
+    client.post("/api/v1/metrics/collect", json=metrics_data)
     
     # Get history
     response = client.get("/api/v1/metrics/history?page=1&page_size=10")
@@ -61,8 +87,9 @@ def test_metrics_history_endpoint(client: TestClient):
 def test_metrics_history_pagination(client: TestClient):
     """Test metrics history pagination."""
     # Create multiple metrics
+    metrics_data = get_test_metrics_data()
     for _ in range(5):
-        client.post("/api/v1/metrics/collect")
+        client.post("/api/v1/metrics/collect", json=metrics_data)
     
     # Test first page
     response = client.get("/api/v1/metrics/history?page=1&page_size=2")

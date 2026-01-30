@@ -82,6 +82,7 @@ private:
     MetricType m_currentMetricType;
     QDateTimeAxis *m_axisX;
     QValueAxis *m_axisY;
+    QDateTime m_currentEndTime;
 
 private slots:
     void onStartClicked();

@@ -36,6 +36,7 @@ class SystemMetrics(Base):
     # System info
     hostname = Column(String(255), nullable=True)
     platform = Column(String(50), nullable=True)
+    uptime_seconds = Column(Float, nullable=True)
     
     # Index for time-based queries
     __table_args__ = (

@@ -43,7 +43,8 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         "\"network_bytes_sent\":%llu,"
         "\"network_bytes_recv\":%llu,"
         "\"hostname\":\"%s\","
-        "\"platform\":\"%s\""
+        "\"platform\":\"%s\","
+        "\"uptime_seconds\":%.2f"
         "}",
         metrics->cpu_percent,
         metrics->cpu_count,
@@ -61,7 +62,8 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         (unsigned long long)metrics->network_bytes_sent,
         (unsigned long long)metrics->network_bytes_recv,
         metrics->hostname,
-        metrics->platform
+        metrics->platform,
+        metrics->uptime_seconds
     );
     
     return (written > 0 && written < (int)buffer_size) ? 0 : -1;

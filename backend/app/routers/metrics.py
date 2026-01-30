@@ -38,15 +38,12 @@ def get_live_metrics():
 
 
 @router.post("/collect", response_model=SystemMetricsResponse, status_code=201)
-def collect_and_save_metrics(db: Session = Depends(get_db)):
+def collect_and_save_metrics(metrics: SystemMetricsCreate, db: Session = Depends(get_db)):
     """
     Collect current system metrics and save to database.
     Also updates the cache with latest metrics.
     """
     try:
-        # Collect metrics
-        metrics = metrics_service.collect_metrics()
-        
         # Save to database
         db_metrics = metrics_service.save_metrics(db, metrics)
         

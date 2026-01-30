@@ -6,6 +6,9 @@
 
 DashboardWidget::DashboardWidget(QWidget *parent)
     : QWidget(parent)
+    , m_prevNetworkSent(0)
+    , m_prevNetworkRecv(0)
+    , m_lastMetricTimestamp(QDateTime())
 {
     setupUI();
 }
@@ -222,6 +225,38 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
     } else {
         m_lastUpdateLabel->setText(QString("Last Update: %1").arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
     }
+
+    // Uptime
+    if (metrics.contains("uptime_seconds")) {
+        qint64 uptimeSeconds = static_cast<qint64>(metrics["uptime_seconds"].toDouble());
+        m_uptimeLabel->setText(QString("Uptime: %1").arg(formatUptime(uptimeSeconds)));
+    }
+
+    // Network Speed Calculation
+    if (metrics.contains("network_bytes_sent") && metrics.contains("network_bytes_recv") && metrics.contains("timestamp")) {
+        qint64 currentSent = static_cast<qint64>(metrics["network_bytes_sent"].toDouble());
+        qint64 currentRecv = static_cast<qint64>(metrics["network_bytes_recv"].toDouble());
+        QDateTime currentTimestamp = QDateTime::fromString(metrics["timestamp"].toString(), Qt::ISODate);
+
+        if (m_lastMetricTimestamp.isValid() && m_lastMetricTimestamp < currentTimestamp) {
+            qint64 timeElapsedMs = m_lastMetricTimestamp.msecsTo(currentTimestamp);
+            if (timeElapsedMs > 0) {
+                double sentSpeed = (currentSent - m_prevNetworkSent) * 1000.0 / timeElapsedMs; // bytes/sec
+                double recvSpeed = (currentRecv - m_prevNetworkRecv) * 1000.0 / timeElapsedMs; // bytes/sec
+                m_networkSpeedLabel->setText(QString("Speed: S: %1/s R: %2/s")
+                                              .arg(formatNetworkSpeed(sentSpeed))
+                                              .arg(formatNetworkSpeed(recvSpeed)));
+            } else {
+                m_networkSpeedLabel->setText("Speed: 0 B/s");
+            }
+        } else {
+            m_networkSpeedLabel->setText("Speed: --"); // Initial state or invalid timestamp
+        }
+
+        m_prevNetworkSent = currentSent;
+        m_prevNetworkRecv = currentRecv;
+        m_lastMetricTimestamp = currentTimestamp;
+    }
 }
 
 QString DashboardWidget::formatBytes(qint64 bytes)
@@ -248,3 +283,45 @@ QString DashboardWidget::formatPercent(double percent)
 {
     return QString("%1%").arg(percent, 0, 'f', 1);
 }
+
+QString DashboardWidget::formatUptime(qint64 seconds)
+{
+    qint64 days = seconds / (24 * 3600);
+    seconds %= (24 * 3600);
+    qint64 hours = seconds / 3600;
+    seconds %= 3600;
+    qint64 minutes = seconds / 60;
+    qint64 remainingSeconds = seconds % 60;
+
+    QString uptimeString;
+    if (days > 0) {
+        uptimeString += QString("%1d ").arg(days);
+    }
+    if (hours > 0 || days > 0) { // Show hours if days are present or if hours exist
+        uptimeString += QString("%1h ").arg(hours);
+    }
+    if (minutes > 0 || hours > 0 || days > 0) { // Show minutes if hours/days are present or if minutes exist
+        uptimeString += QString("%1m ").arg(minutes);
+    }
+    uptimeString += QString("%1s").arg(remainingSeconds);
+
+    return uptimeString.trimmed();
+}
+
+QString DashboardWidget::formatNetworkSpeed(double bytesPerSecond)
+{
+    const double KB = 1024.0;
+    const double MB = KB * 1024.0;
+    const double GB = MB * 1024.0;
+
+    if (bytesPerSecond >= GB) {
+        return QString("%1 GB").arg(bytesPerSecond / GB, 0, 'f', 2);
+    } else if (bytesPerSecond >= MB) {
+        return QString("%1 MB").arg(bytesPerSecond / MB, 0, 'f', 2);
+    } else if (bytesPerSecond >= KB) {
+        return QString("%1 KB").arg(bytesPerSecond / KB, 0, 'f', 2);
+    } else {
+        return QString("%1 B").arg(bytesPerSecond, 0, 'f', 0);
+    }
+}
+

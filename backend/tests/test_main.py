@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from tests.test_api import get_test_metrics_data
 
 
 @pytest.fixture
@@ -36,7 +37,8 @@ def test_get_live_metrics(simple_client):
 
 
 def test_collect_metrics(client):
-    response = client.post("/api/v1/metrics/collect")
+    metrics_data = get_test_metrics_data()
+    response = client.post("/api/v1/metrics/collect", json=metrics_data)
     assert response.status_code == 201
     data = response.json()
     assert "id" in data

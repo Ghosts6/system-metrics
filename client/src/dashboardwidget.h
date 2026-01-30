@@ -26,6 +26,8 @@ private:
     void setupUI();
     QString formatBytes(qint64 bytes);
     QString formatPercent(double percent);
+    QString formatUptime(qint64 seconds); // New helper
+    QString formatNetworkSpeed(double bytesPerSecond); // New helper
     
     // System info
     QLabel *m_hostnameLabel;
@@ -51,6 +53,11 @@ private:
     QLabel *m_networkSentLabel;
     QLabel *m_networkRecvLabel;
     QLabel *m_networkSpeedLabel;
+    
+    // Variables for network speed calculation and uptime
+    qint64 m_prevNetworkSent;
+    qint64 m_prevNetworkRecv;
+    QDateTime m_lastMetricTimestamp;
     
     // Status indicators
     QLabel *m_statusLabel;

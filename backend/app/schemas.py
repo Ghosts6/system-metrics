@@ -26,6 +26,7 @@ class SystemMetricsBase(BaseModel):
     
     hostname: Optional[str] = Field(None, description="System hostname")
     platform: Optional[str] = Field(None, description="Operating system platform")
+    uptime_seconds: Optional[float] = Field(None, description="System uptime in seconds")
 
 
 class SystemMetricsCreate(SystemMetricsBase):

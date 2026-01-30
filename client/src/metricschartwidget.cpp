@@ -130,12 +130,19 @@ void MetricsChartWidget::setupChart()
     m_axisX->setTitleText("Time");
     m_axisX->setLabelsColor(QColor(224, 224, 224));
     m_axisX->setTitleBrush(QBrush(QColor(224, 224, 224)));
+    m_axisX->setGridLineColor(QColor(60, 60, 60)); // Softer grid lines
+    m_axisX->setGridLinePen(QPen(QColor(60, 60, 60), 0.5, Qt::SolidLine)); // Thinner, solid grid lines
     m_chart->addAxis(m_axisX, Qt::AlignBottom);
 
     m_axisY = new QValueAxis();
     m_axisY->setTitleText("Value");
     m_axisY->setLabelsColor(QColor(224, 224, 224));
-    m_axisY->setTitleBrush(QBrush(QColor(224, 224, 224)));
+    m_axisY->setTitleBrush(QBrush(QColor(20, 160, 133))); // #14a085 - same as main title
+    QFont yAxisTitleFont = m_axisY->titleFont();
+    yAxisTitleFont.setPointSize(10); // Slightly smaller than main widget title
+    m_axisY->setTitleFont(yAxisTitleFont);
+    m_axisY->setGridLineColor(QColor(60, 60, 60)); // Softer grid lines
+    m_axisY->setGridLinePen(QPen(QColor(60, 60, 60), 0.5, Qt::SolidLine)); // Thinner, solid grid lines
     m_chart->addAxis(m_axisY, Qt::AlignLeft);
 
     m_chartView->setChart(m_chart);
@@ -173,6 +180,7 @@ void MetricsChartWidget::onRefreshClicked()
     int rangeIndex = m_timeRangeCombo->currentIndex();
     QDateTime endTime = QDateTime::currentDateTime();
     QDateTime startTime = getStartTimeForRange(rangeIndex);
+    m_currentEndTime = endTime; // Store the current end time
     emit requestHistory(startTime, endTime);
 }
 
@@ -256,23 +264,49 @@ void MetricsChartWidget::updateChart(const QJsonArray &metrics)
         return;
     }
 
-    QLineSeries *series = new QLineSeries();
-    series->setName(getMetricName(m_currentMetricType));
-    series->setColor(QColor(20, 160, 133)); // #14a085
+    const int GAP_THRESHOLD_SECONDS = 300; // 5 minutes
+
+    QLineSeries *currentSeries = nullptr;
+    QDateTime lastTimestamp;
 
     QDateTime minTime = QDateTime::currentDateTime();
     QDateTime maxTime = QDateTime::fromSecsSinceEpoch(0);
     double minValue = std::numeric_limits<double>::max();
     double maxValue = std::numeric_limits<double>::min();
 
+
     for (const QJsonValue &value : metrics) {
         QJsonObject metric = value.toObject();
         
         QString timestampStr = metric["timestamp"].toString();
-        QDateTime timestamp = QDateTime::fromString(timestampStr, Qt::ISODate);
+        QDateTime currentTimestamp = QDateTime::fromString(timestampStr, Qt::ISODate);
         
-        if (!timestamp.isValid()) {
+        if (!currentTimestamp.isValid()) {
             continue;
+        }
+
+        // Check for a gap
+        if (currentSeries && lastTimestamp.isValid() &&
+            currentTimestamp.toSecsSinceEpoch() - lastTimestamp.toSecsSinceEpoch() > GAP_THRESHOLD_SECONDS)
+        {
+            // Gap detected, finalize current series and start a new one
+            if (currentSeries->count() > 0) {
+                m_chart->addSeries(currentSeries);
+                currentSeries->attachAxis(m_axisX);
+                currentSeries->attachAxis(m_axisY);
+            } else {
+                delete currentSeries; // Delete empty series if only one point before gap
+            }
+            currentSeries = nullptr; // Reset for new series
+        }
+
+        if (!currentSeries) {
+            currentSeries = new QLineSeries();
+            currentSeries->setName(getMetricName(m_currentMetricType));
+            currentSeries->setColor(QColor(20, 160, 133)); // #14a085
+            QPen seriesPen = currentSeries->pen();
+            seriesPen.setWidth(2); // Make the line thicker
+            currentSeries->setPen(seriesPen);
         }
 
         double dataValue = 0.0;
@@ -294,25 +328,30 @@ void MetricsChartWidget::updateChart(const QJsonArray &metrics)
                 break;
         }
 
-        series->append(timestamp.toMSecsSinceEpoch(), dataValue);
+        currentSeries->append(currentTimestamp.toMSecsSinceEpoch(), dataValue);
 
-        if (timestamp < minTime) minTime = timestamp;
-        if (timestamp > maxTime) maxTime = timestamp;
+        if (currentTimestamp < minTime) minTime = currentTimestamp;
+        if (currentTimestamp > maxTime) maxTime = currentTimestamp; // Keep track of overall max time from data for y-axis scaling
         if (dataValue < minValue) minValue = dataValue;
         if (dataValue > maxValue) maxValue = dataValue;
+        
+        lastTimestamp = currentTimestamp;
     }
 
-    if (series->count() == 0) {
-        delete series;
-        return;
+    // Add the last series if it exists and has points
+    if (currentSeries && currentSeries->count() > 0) {
+        m_chart->addSeries(currentSeries);
+        currentSeries->attachAxis(m_axisX);
+        currentSeries->attachAxis(m_axisY);
+    } else if (currentSeries) {
+        delete currentSeries; // Delete if the last series was empty
     }
 
-    m_chart->addSeries(series);
-    series->attachAxis(m_axisX);
-    series->attachAxis(m_axisY);
 
     // Update axes
-    m_axisX->setRange(minTime, maxTime);
+    // Use m_currentEndTime for the max range to ensure the axis covers the entire requested period
+    m_axisX->setRange(minTime, m_currentEndTime);
+
     
     // Add some padding to Y axis
     double padding = (maxValue - minValue) * 0.1;
@@ -329,7 +368,8 @@ void MetricsChartWidget::updateChart(const QJsonArray &metrics)
     m_axisY->setTitleText(yTitle);
 
     // Update chart title
-    m_chart->setTitle(getMetricName(m_currentMetricType) + " Over Time");
+    QString timeRangeText = m_timeRangeCombo->currentText();
+    m_chart->setTitle(getMetricName(m_currentMetricType) + " Over Time (" + timeRangeText + ")");
 }
 
 void MetricsChartWidget::clearChart()

@@ -50,6 +50,10 @@ class MetricsService:
         hostname = socket.gethostname()
         platform_name = platform.system()
         
+        # Calculate uptime in seconds
+        boot_time_timestamp = psutil.boot_time()
+        uptime_seconds = datetime.now().timestamp() - boot_time_timestamp
+        
         return SystemMetricsCreate(
             cpu_percent=cpu_percent,
             cpu_count=cpu_count,
@@ -67,7 +71,8 @@ class MetricsService:
             network_bytes_sent=network_bytes_sent,
             network_bytes_recv=network_bytes_recv,
             hostname=hostname,
-            platform=platform_name
+            platform=platform_name,
+            uptime_seconds=uptime_seconds
         )
     
     @staticmethod
