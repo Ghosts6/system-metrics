@@ -2,7 +2,21 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, ConfigDict
 
+class GpuMetricsBase(BaseModel):
+    """Base schema for GPU metrics."""
+    name: str = Field(..., description="GPU name")
+    driver_version: str = Field(..., description="GPU driver version")
+    memory_total: int = Field(..., ge=0, description="Total GPU memory in bytes")
+    memory_used: int = Field(..., ge=0, description="Used GPU memory in bytes")
+    temperature: float = Field(..., ge=0, description="GPU temperature in Celsius")
+    utilization: float = Field(..., ge=0, le=100, description="GPU utilization percentage")
 
+class GpuMetricsResponse(GpuMetricsBase):
+    id: int
+    metric_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+    
 class SystemMetricsBase(BaseModel):
     """Base schema for system metrics."""
     cpu_percent: float = Field(..., ge=0, le=100, description="CPU usage percentage")
@@ -27,16 +41,18 @@ class SystemMetricsBase(BaseModel):
     hostname: Optional[str] = Field(None, description="System hostname")
     platform: Optional[str] = Field(None, description="Operating system platform")
     uptime_seconds: Optional[float] = Field(None, description="System uptime in seconds")
+    gpu_count: Optional[int] = Field(0, ge=0, description="Number of GPUs")
 
 
 class SystemMetricsCreate(SystemMetricsBase):
     """Schema for creating system metrics."""
-    pass
+    gpus: Optional[List[GpuMetricsBase]] = []
 
 
 class SystemMetricsResponse(SystemMetricsBase):
     id: int
     timestamp: datetime
+    gpus: List[GpuMetricsResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
 

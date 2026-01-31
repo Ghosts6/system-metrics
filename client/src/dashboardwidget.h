@@ -53,6 +53,11 @@ private:
     QLabel *m_networkSentLabel;
     QLabel *m_networkRecvLabel;
     QLabel *m_networkSpeedLabel;
+
+    // GPU
+    QLabel *m_gpuLabel;
+    QProgressBar *m_gpuBar;
+    QLabel *m_gpuDetailLabel;
     
     // Variables for network speed calculation and uptime
     qint64 m_prevNetworkSent;

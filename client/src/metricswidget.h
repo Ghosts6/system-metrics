@@ -32,16 +32,17 @@ public slots:
 
 private:
     QLabel *m_cpuLabel;
+    QProgressBar *m_cpuBar;
+    QLabel *m_gpuLabel;
+    QProgressBar *m_gpuBar;
     QLabel *m_memoryLabel;
+    QProgressBar *m_memoryBar;
     QLabel *m_diskLabel;
+    QProgressBar *m_diskBar;
     QLabel *m_networkLabel;
     QLabel *m_hostnameLabel;
     QLabel *m_platformLabel;
     QLabel *m_timestampLabel;
-
-    QProgressBar *m_cpuBar;
-    QProgressBar *m_memoryBar;
-    QProgressBar *m_diskBar;
 
     QChartView *m_detailChartView; // To display the currently selected detailed chart
     QMap<QString, QChart*> m_charts; // Map to hold different detailed charts
@@ -50,24 +51,28 @@ private:
 
     // Keep series and axes for now, will be updated in next steps
     QLineSeries *m_cpuSeries;
+    QLineSeries *m_gpuSeries;
     QLineSeries *m_memorySeries;
     QLineSeries *m_diskSeries;
     QLineSeries *m_networkSentSeries;
     QLineSeries *m_networkRecvSeries;
     
     QValueAxis *m_cpuAxisY;
+    QValueAxis *m_gpuAxisY;
     QValueAxis *m_memoryAxisY;
     QValueAxis *m_diskAxisY;
     QValueAxis *m_networkAxisY;
     QValueAxis *m_networkAxisX;
 
     QValueAxis *m_cpuAxisX;
+    QValueAxis *m_gpuAxisX;
     QValueAxis *m_memoryAxisX;
     QValueAxis *m_diskAxisX; // Still needed for network chart's second axis
 
     // Data history (keep last 60 points)
     static const int MAX_DATA_POINTS = 60;
     QQueue<double> m_cpuHistory;
+    QQueue<double> m_gpuHistory;
     QQueue<double> m_memoryHistory;
     QQueue<double> m_diskHistory;
     QQueue<double> m_networkSentHistory;

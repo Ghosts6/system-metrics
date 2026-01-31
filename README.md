@@ -20,10 +20,7 @@
 sudo docker-compose up -d
 ```
 
-This starts:
-- Backend API on `http://localhost:8000`
-- PostgreSQL database
-- Redis cache
+**Note for GPU Monitoring:** For GPU metrics collection with NVIDIA GPUs on Linux, ensure you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed on your host system. This allows Docker containers to access your host's GPU resources.
 
 Verify backend is running:
 ```bash

@@ -4,6 +4,15 @@
 #include <stdint.h>
 
 typedef struct {
+    char name[256];
+    char driver_version[64];
+    uint64_t memory_total;
+    uint64_t memory_used;
+    double temperature;
+    double utilization;
+} GpuMetrics;
+
+typedef struct {
     double cpu_percent;
     int cpu_count;
     double cpu_freq_current;
@@ -26,6 +35,9 @@ typedef struct {
     char hostname[256];
     char platform[64];
     double uptime_seconds;
+
+    int gpu_count;
+    GpuMetrics gpus[4];
 } SystemMetrics;
 
 int collect_metrics(SystemMetrics *metrics);
@@ -34,5 +46,6 @@ int get_memory_metrics(SystemMetrics *metrics);
 int get_disk_metrics(SystemMetrics *metrics);
 int get_network_metrics(SystemMetrics *metrics);
 int get_system_info(SystemMetrics *metrics);
+int get_gpu_metrics(SystemMetrics *metrics);
 
 #endif

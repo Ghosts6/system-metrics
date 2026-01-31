@@ -59,7 +59,18 @@ Get the latest system metrics from cache. Returns cached data if available, othe
   "network_bytes_recv": 2048000,
   "hostname": "example-host",
   "platform": "Linux",
-  "timestamp": "2024-01-15T10:30:00"
+  "timestamp": "2024-01-15T10:30:00",
+  "gpu_count": 1,
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 5070",
+      "driver_version": "580.95.05",
+      "memory_total": 12884901888,
+      "memory_used": 546200064,
+      "temperature": 36.0,
+      "utilization": 1.0
+    }
+  ]
 }
 ```
 
@@ -235,6 +246,18 @@ All endpoints may return the following error codes:
 - `network_bytes_recv`: Network bytes received
 - `hostname`: System hostname
 - `platform`: Operating system platform
+- `uptime_seconds`: System uptime in seconds
+- `gpu_count`: Number of GPUs
+- `gpus`: List of `GpuMetrics` objects (see below)
+
+### GpuMetrics
+
+- `name`: GPU name (e.g., "NVIDIA GeForce RTX 5070")
+- `driver_version`: GPU driver version
+- `memory_total`: Total GPU memory in bytes
+- `memory_used`: Used GPU memory in bytes
+- `temperature`: GPU temperature in Celsius
+- `utilization`: GPU utilization percentage (0-100)
 
 ### SystemLog
 

@@ -528,6 +528,76 @@ int get_uptime_metrics(SystemMetrics *metrics) {
 
 #endif
 
+
+#if defined(__linux__)
+static char* get_command_output(const char* cmd) {
+    char buffer[128];
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) {
+        return NULL;
+    }
+    char* result = malloc(1);
+    result[0] = '\0';
+    size_t size = 1;
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        char* new_result = realloc(result, size + strlen(buffer));
+        if (!new_result) {
+            free(result);
+            pclose(pipe);
+            return NULL;
+        }
+        result = new_result;
+        strcpy(result + size - 1, buffer);
+        size += strlen(buffer);
+    }
+    pclose(pipe);
+    return result;
+}
+
+
+int get_gpu_metrics(SystemMetrics *metrics) {
+    metrics->gpu_count = 0;
+    const char* cmd = "nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,temperature.gpu,utilization.gpu --format=csv,noheader,nounits";
+    
+    char* output = get_command_output(cmd);
+    if (!output) {
+        return 0; // nvidia-smi not found or failed
+    }
+    
+    char* line = strtok(output, "\n");
+    int i = 0;
+    while (line != NULL && i < 4) {
+        GpuMetrics* gpu = &metrics->gpus[i];
+        
+        char* name = strtok(line, ",");
+        char* driver_version = strtok(NULL, ",");
+        char* memory_total_str = strtok(NULL, ",");
+        char* memory_used_str = strtok(NULL, ",");
+        char* temperature_str = strtok(NULL, ",");
+        char* utilization_str = strtok(NULL, ",");
+        
+        if (name) strncpy(gpu->name, name, sizeof(gpu->name) - 1);
+        if (driver_version) strncpy(gpu->driver_version, driver_version, sizeof(gpu->driver_version) - 1);
+        if (memory_total_str) gpu->memory_total = (uint64_t)atof(memory_total_str) * 1024 * 1024;
+        if (memory_used_str) gpu->memory_used = (uint64_t)atof(memory_used_str) * 1024 * 1024;
+        if (temperature_str) gpu->temperature = atof(temperature_str);
+        if (utilization_str) gpu->utilization = atof(utilization_str);
+        
+        i++;
+        line = strtok(NULL, "\n");
+    }
+    
+    metrics->gpu_count = i;
+    free(output);
+    return 0;
+}
+#else
+int get_gpu_metrics(SystemMetrics* metrics) {
+    metrics->gpu_count = 0;
+    return 0;
+}
+#endif
+
 int collect_metrics(SystemMetrics *metrics) {
     memset(metrics, 0, sizeof(SystemMetrics));
     
@@ -537,6 +607,7 @@ int collect_metrics(SystemMetrics *metrics) {
     if (get_disk_metrics(metrics) != 0) return -1;
     if (get_network_metrics(metrics) != 0) return -1;
     if (get_uptime_metrics(metrics) != 0) return -1;
+    if (get_gpu_metrics(metrics) != 0) return -1;
     
     return 0;
 }

@@ -25,6 +25,33 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffer_size) {
+    char gpu_buffer[2048] = {0};
+    if (metrics->gpu_count > 0) {
+        strcat(gpu_buffer, ",\"gpus\":[");
+        for (int i = 0; i < metrics->gpu_count; i++) {
+            char temp_buffer[512];
+            snprintf(temp_buffer, sizeof(temp_buffer),
+                "%s{"
+                "\"name\":\"%s\","
+                "\"driver_version\":\"%s\","
+                "\"memory_total\":%llu,"
+                "\"memory_used\":%llu,"
+                "\"temperature\":%.2f,"
+                "\"utilization\":%.2f"
+                "}",
+                (i > 0 ? "," : ""),
+                metrics->gpus[i].name,
+                metrics->gpus[i].driver_version,
+                (unsigned long long)metrics->gpus[i].memory_total,
+                (unsigned long long)metrics->gpus[i].memory_used,
+                metrics->gpus[i].temperature,
+                metrics->gpus[i].utilization
+            );
+            strcat(gpu_buffer, temp_buffer);
+        }
+        strcat(gpu_buffer, "]");
+    }
+
     int written = snprintf(buffer, buffer_size,
         "{"
         "\"cpu_percent\":%.2f,"
@@ -44,7 +71,8 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         "\"network_bytes_recv\":%llu,"
         "\"hostname\":\"%s\","
         "\"platform\":\"%s\","
-        "\"uptime_seconds\":%.2f"
+        "\"uptime_seconds\":%.2f,"
+        "\"gpu_count\":%d%s"
         "}",
         metrics->cpu_percent,
         metrics->cpu_count,
@@ -63,7 +91,9 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         (unsigned long long)metrics->network_bytes_recv,
         metrics->hostname,
         metrics->platform,
-        metrics->uptime_seconds
+        metrics->uptime_seconds,
+        metrics->gpu_count,
+        gpu_buffer
     );
     
     return (written > 0 && written < (int)buffer_size) ? 0 : -1;

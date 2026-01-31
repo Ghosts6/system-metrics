@@ -8,17 +8,18 @@ The System Metrics Client is a cross-platform Qt6 (C++) desktop application for 
 
 ### 1. Dashboard Tab
 - **Overview**: Provides a comprehensive overview of system metrics at a glance
-- **Key Metrics Display**: Large, easy-to-read displays for CPU, Memory, and Disk usage
-- **Visual Indicators**: Progress bars with color-coded status
+- **Key Metrics Display**: Large, easy-to-read displays for CPU, Memory, Disk, Network and GPU usage
+- **Visual Indicators**: Progress bars with color-coded status for CPU, Memory, Disk, and GPU utilization
 - **System Information**: Hostname, platform, and connection status
 - **Network Activity**: Real-time network statistics
 
 ### 2. Live Metrics Tab
-- **Real-time System Metrics**: CPU, Memory, Disk, and Network usage
+- **Real-time System Metrics**: CPU, Memory, Disk, Network, and GPU usage
 - **Detailed Information**: Shows both percentages and absolute values
 - **Progress Bars**: Visual representation of resource usage
 - **Live Usage Graphs**: Real-time line charts showing usage trends for each component
   - CPU Usage % graph
+  - GPU Usage % graph (for the first detected GPU)
   - Memory Usage % graph
   - Disk Usage % graph
   - Network Activity graph (sent/received in MB)
@@ -30,6 +31,7 @@ The System Metrics Client is a cross-platform Qt6 (C++) desktop application for 
 - **Time-series Visualization**: Interactive charts using Qt Charts
 - **Multiple Metric Types**: 
   - CPU Usage %
+  - GPU Usage %
   - Memory Usage %
   - Disk Usage %
   - Network Sent (MB)
@@ -61,6 +63,7 @@ The System Metrics Client is a cross-platform Qt6 (C++) desktop application for 
 - **Organized Sections**:
   - System Information (hostname, platform, timestamp)
   - CPU Information (cores, usage, frequencies)
+  - GPU Information (name, driver, utilization, temperature, memory for each detected GPU)
   - Memory Information (total, used, available, percentage)
   - Disk Information (total, used, free, percentage)
   - Network Information (bytes sent/received)
@@ -245,3 +248,13 @@ Potential improvements:
 - Metric aggregation and statistics
 - Process monitoring
 - Network interface details
+
+## Future GPU Platform Support
+
+Currently, GPU metrics are primarily supported for NVIDIA GPUs on Linux due to the reliance on `nvidia-smi` in the collector. Future plans include expanding GPU monitoring to:
+
+-   **Other Linux GPUs**: Implement support for AMD (`rocm-smi`) and Intel GPUs.
+-   **Windows**: Integrate with Windows-specific APIs or vendor-provided tools for NVIDIA, AMD, and Intel GPUs.
+-   **macOS**: Utilize macOS-specific frameworks for GPU monitoring.
+
+This will provide a comprehensive, cross-platform GPU monitoring solution across the entire application stack.

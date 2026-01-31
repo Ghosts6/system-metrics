@@ -6,6 +6,7 @@
 #include <QFont>
 #include <QBrush>
 #include <QColor>
+#include <QJsonArray>
 
 static QString formatBytes(qint64 bytes)
 {
@@ -118,6 +119,23 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
 
     rows.append(InfoRow{"", ""}); // Separator
 
+    // GPU Information
+    if (metrics.contains("gpus") && metrics["gpus"].isArray()) {
+        QJsonArray gpus = metrics["gpus"].toArray();
+        if (!gpus.isEmpty()) {
+            rows.append(InfoRow{"GPU Information", ""});
+            for (int i = 0; i < gpus.size(); ++i) {
+                QJsonObject gpu = gpus[i].toObject();
+                rows.append(InfoRow{QString("GPU %1 Name").arg(i), gpu["name"].toString()});
+                rows.append(InfoRow{QString("GPU %1 Driver").arg(i), gpu["driver_version"].toString()});
+                rows.append(InfoRow{QString("GPU %1 Temp").arg(i), QString("%1 °C").arg(gpu["temperature"].toDouble(), 0, 'f', 1)});
+                rows.append(InfoRow{QString("GPU %1 Util").arg(i), QString("%1 %").arg(gpu["utilization"].toDouble(), 0, 'f', 1)});
+                rows.append(InfoRow{QString("GPU %1 Memory").arg(i), QString("%1 / %2").arg(formatBytes(gpu["memory_used"].toDouble())).arg(formatBytes(gpu["memory_total"].toDouble()))});
+            }
+            rows.append(InfoRow{"", ""}); // Separator
+        }
+    }
+
     // Memory Information
     rows.append(InfoRow{"Memory Information", ""});
     if (metrics.contains("memory_total")) {
@@ -190,9 +208,9 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
         }
         
         m_infoTable->setItem(i, 0, propertyItem);
-                m_infoTable->setItem(i, 1, valueItem);
-            }
-            
-            m_infoTable->setUpdatesEnabled(true); // Re-enable updates
-            m_infoTable->viewport()->update(); // Force a repaint of the viewport
-        }
+        m_infoTable->setItem(i, 1, valueItem);
+    }
+    
+    m_infoTable->setUpdatesEnabled(true); // Re-enable updates
+    m_infoTable->viewport()->update(); // Force a repaint of the viewport
+}

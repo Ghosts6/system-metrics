@@ -58,6 +58,7 @@ void MetricsChartWidget::setupUI()
     m_metricTypeCombo->addItem("CPU Usage %", CPU_PERCENT);
     m_metricTypeCombo->addItem("Memory Usage %", MEMORY_PERCENT);
     m_metricTypeCombo->addItem("Disk Usage %", DISK_PERCENT);
+    m_metricTypeCombo->addItem("GPU Usage %", GPU_PERCENT);
     m_metricTypeCombo->addItem("Network Sent", NETWORK_SENT);
     m_metricTypeCombo->addItem("Network Received", NETWORK_RECV);
     m_metricTypeCombo->setStyleSheet(
@@ -245,6 +246,7 @@ QString MetricsChartWidget::getMetricName(int type) const
         case CPU_PERCENT: return "CPU Usage";
         case MEMORY_PERCENT: return "Memory Usage";
         case DISK_PERCENT: return "Disk Usage";
+        case GPU_PERCENT: return "GPU Usage";
         case NETWORK_SENT: return "Network Sent";
         case NETWORK_RECV: return "Network Received";
         default: return "Unknown";
@@ -320,6 +322,17 @@ void MetricsChartWidget::updateChart(const QJsonArray &metrics)
             case DISK_PERCENT:
                 dataValue = metric["disk_percent"].toDouble();
                 break;
+            case GPU_PERCENT:
+            {
+                if (metric.contains("gpus") && metric["gpus"].isArray()) {
+                    QJsonArray gpus = metric["gpus"].toArray();
+                    if (!gpus.isEmpty()) {
+                        QJsonObject gpu = gpus[0].toObject();
+                        dataValue = gpu["utilization"].toDouble();
+                    }
+                }
+            }
+            break;
             case NETWORK_SENT:
                 dataValue = metric["network_bytes_sent"].toDouble() / (1024.0 * 1024.0); // Convert to MB
                 break;

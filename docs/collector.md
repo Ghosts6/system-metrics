@@ -99,9 +99,26 @@ Useful for piping to other tools, testing, or backend integration.
 - Memory: total, available, used, percentage
 - Disk: total, used, free, percentage (root partition)
 - Network: bytes sent/received (aggregated)
-- System: hostname, platform
+- System: hostname, platform, uptime
+- GPU: utilization percentage, temperature, total memory, used memory, name, driver version (NVIDIA only on Linux)
 
-## Backend Integration
+## GPU Metrics Collection
+
+Currently, the C collector supports NVIDIA GPUs on Linux platforms. It leverages the `nvidia-smi` command-line utility to gather detailed GPU metrics including utilization, temperature, memory usage, GPU name, and driver version.
+
+### Host Prerequisites for GPU Collection
+
+For the collector container to access host GPU resources and `nvidia-smi`, the host system must have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed and configured for Docker. This enables GPU passthrough to Docker containers.
+
+### Future Enhancements for GPU Support
+
+Future plans include expanding GPU metrics collection to:
+
+-   **Other Linux GPUs**: Implement support for AMD (`rocm-smi`) and Intel GPUs.
+-   **Windows**: Integrate with Windows-specific APIs or vendor-provided tools for NVIDIA, AMD, and Intel GPUs.
+-   **macOS**: Utilize macOS-specific frameworks for GPU monitoring.
+
+This will provide a comprehensive, cross-platform GPU monitoring solution.
 
 The FastAPI backend can use either psutil (Python) or the C collector for metrics collection.
 
@@ -183,7 +200,22 @@ The JSON format matches the backend API schema:
   "memory_total": 8589934592,
   "memory_percent": 50.0,
   "disk_percent": 50.0,
-  ...
+  "network_bytes_sent": 1024000,
+  "network_bytes_recv": 2048000,
+  "hostname": "example-host",
+  "platform": "Linux",
+  "uptime_seconds": 123456.78,
+  "gpu_count": 1,
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 5070",
+      "driver_version": "580.95.05",
+      "memory_total": 12884901888,
+      "memory_used": 546200064,
+      "temperature": 36.0,
+      "utilization": 1.0
+    }
+  ]
 }
 ```
 

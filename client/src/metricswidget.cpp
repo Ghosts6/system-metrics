@@ -6,6 +6,7 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QValueAxis>
 #include <QPainter>
+#include <QJsonArray>
 
 MetricsWidget::MetricsWidget(QWidget *parent)
     : QWidget(parent)
@@ -13,16 +14,19 @@ MetricsWidget::MetricsWidget(QWidget *parent)
     , m_currentChart(nullptr) // Initialize m_currentChart
     , m_chartComboBox(nullptr)
     , m_cpuSeries(nullptr)
+    , m_gpuSeries(nullptr)
     , m_memorySeries(nullptr)
     , m_diskSeries(nullptr)
     , m_networkSentSeries(nullptr)
     , m_networkRecvSeries(nullptr)
     , m_cpuAxisY(nullptr)
+    , m_gpuAxisY(nullptr)
     , m_memoryAxisY(nullptr)
     , m_diskAxisY(nullptr)
     , m_networkAxisY(nullptr)
     , m_networkAxisX(nullptr)
     , m_cpuAxisX(nullptr)
+    , m_gpuAxisX(nullptr)
     , m_memoryAxisX(nullptr)
     , m_diskAxisX(nullptr)
 {
@@ -79,6 +83,22 @@ void MetricsWidget::setupUI()
     summaryLayout->addWidget(m_cpuLabel, 1, 0);
     summaryLayout->addWidget(m_cpuBar, 1, 1, 1, 2); // Span 2 columns
 
+    // GPU Section
+    m_gpuLabel = new QLabel("GPU: 0%", this);
+    m_gpuLabel->setStyleSheet("color: #e0e0e0; font-size: 13px; font-weight: bold;");
+    m_gpuBar = new QProgressBar(this);
+    m_gpuBar->setRange(0, 100);
+    m_gpuBar->setValue(0);
+    m_gpuBar->setTextVisible(true);
+    m_gpuBar->setFormat("%p%");
+    m_gpuBar->setStyleSheet(
+        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 28px; }"
+        "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
+    );
+
+    summaryLayout->addWidget(m_gpuLabel, 2, 0);
+    summaryLayout->addWidget(m_gpuBar, 2, 1, 1, 2); // Span 2 columns
+
     // Memory Section
     m_memoryLabel = new QLabel("Memory: 0 / 0", this);
     m_memoryLabel->setStyleSheet("color: #e0e0e0; font-size: 13px; font-weight: bold;");
@@ -92,8 +112,8 @@ void MetricsWidget::setupUI()
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
 
-    summaryLayout->addWidget(m_memoryLabel, 2, 0);
-    summaryLayout->addWidget(m_memoryBar, 2, 1, 1, 2); // Span 2 columns
+    summaryLayout->addWidget(m_memoryLabel, 3, 0);
+    summaryLayout->addWidget(m_memoryBar, 3, 1, 1, 2); // Span 2 columns
 
     // Disk Section
     m_diskLabel = new QLabel("Disk: 0 / 0", this);
@@ -108,13 +128,13 @@ void MetricsWidget::setupUI()
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
 
-    summaryLayout->addWidget(m_diskLabel, 3, 0);
-    summaryLayout->addWidget(m_diskBar, 3, 1, 1, 2); // Span 2 columns
+    summaryLayout->addWidget(m_diskLabel, 4, 0);
+    summaryLayout->addWidget(m_diskBar, 4, 1, 1, 2); // Span 2 columns
 
     // Network Section
     m_networkLabel = new QLabel("Network: Sent 0, Received 0", this);
     m_networkLabel->setStyleSheet("color: #e0e0e0; font-size: 13px; font-weight: bold;");
-    summaryLayout->addWidget(m_networkLabel, 4, 0, 1, 3); // Span 3 columns
+    summaryLayout->addWidget(m_networkLabel, 5, 0, 1, 3); // Span 3 columns
 
     mainLayout->addLayout(summaryLayout);
 
@@ -132,6 +152,7 @@ void MetricsWidget::setupUI()
     
     m_chartComboBox = new QComboBox(this);
     m_chartComboBox->addItem("CPU Usage");
+    m_chartComboBox->addItem("GPU Usage");
     m_chartComboBox->addItem("Memory Usage");
     m_chartComboBox->addItem("Disk Usage");
     m_chartComboBox->addItem("Network Activity");
@@ -219,6 +240,18 @@ void MetricsWidget::setupCharts()
     m_cpuAxisX = new QValueAxis();
     setupCommonChart(cpuChart, "CPU Usage (%)", m_cpuSeries, m_cpuAxisY, m_cpuAxisX);
     m_charts.insert("CPU Usage", cpuChart);
+
+    // GPU Chart
+    QChart *gpuChart = new QChart();
+    m_gpuSeries = new QLineSeries();
+    m_gpuSeries->setColor(QColor(20, 160, 133)); // #14a085
+    m_gpuSeries->setPen(QPen(QColor(20, 160, 133), 2));
+    m_gpuAxisY = new QValueAxis();
+    m_gpuAxisY->setRange(0, 100);
+    m_gpuAxisY->setTitleText("%");
+    m_gpuAxisX = new QValueAxis();
+    setupCommonChart(gpuChart, "GPU Usage (%)", m_gpuSeries, m_gpuAxisY, m_gpuAxisX);
+    m_charts.insert("GPU Usage", gpuChart);
 
     // Memory Chart
     QChart *memoryChart = new QChart();
@@ -376,6 +409,23 @@ void MetricsWidget::updateMetrics(const QJsonObject &metrics)
                            .arg(metrics["cpu_count"].toInt()));
         m_cpuBar->setValue(static_cast<int>(cpuPercent));
         updateChart(m_cpuSeries, m_cpuAxisY, m_cpuAxisX, m_cpuHistory, cpuPercent, 100.0);
+    }
+
+    if (metrics.contains("gpus") && metrics["gpus"].isArray()) {
+        QJsonArray gpus = metrics["gpus"].toArray();
+        if (!gpus.isEmpty()) {
+            QJsonObject gpu = gpus[0].toObject();
+            double gpuPercent = gpu["utilization"].toDouble();
+            m_gpuLabel->setText(QString("GPU: %1%").arg(gpuPercent, 0, 'f', 1));
+            m_gpuBar->setValue(static_cast<int>(gpuPercent));
+            updateChart(m_gpuSeries, m_gpuAxisY, m_gpuAxisX, m_gpuHistory, gpuPercent, 100.0);
+        } else {
+            m_gpuLabel->setText("GPU: N/A");
+            m_gpuBar->setValue(0);
+        }
+    } else {
+        m_gpuLabel->setText("GPU: N/A");
+        m_gpuBar->setValue(0);
     }
 
     if (metrics.contains("memory_total")) {

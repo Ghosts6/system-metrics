@@ -63,6 +63,7 @@ private:
         CPU_PERCENT,
         MEMORY_PERCENT,
         DISK_PERCENT,
+        GPU_PERCENT,
         NETWORK_SENT,
         NETWORK_RECV
     };

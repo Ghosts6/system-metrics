@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime, Text, Index
+from sqlalchemy import Column, Integer, Float, String, DateTime, Text, Index, ForeignKey, BigInteger
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -18,30 +19,51 @@ class SystemMetrics(Base):
     cpu_freq_max = Column(Float, nullable=True)
     
     # Memory metrics
-    memory_total = Column(Integer, nullable=False)  # bytes
-    memory_available = Column(Integer, nullable=False)  # bytes
-    memory_used = Column(Integer, nullable=False)  # bytes
+    memory_total = Column(BigInteger, nullable=False)  # bytes
+    memory_available = Column(BigInteger, nullable=False)  # bytes
+    memory_used = Column(BigInteger, nullable=False)  # bytes
     memory_percent = Column(Float, nullable=False)
     
     # Disk metrics (aggregated for main disk)
-    disk_total = Column(Integer, nullable=False)  # bytes
-    disk_used = Column(Integer, nullable=False)  # bytes
-    disk_free = Column(Integer, nullable=False)  # bytes
+    disk_total = Column(BigInteger, nullable=False)  # bytes
+    disk_used = Column(BigInteger, nullable=False)  # bytes
+    disk_free = Column(BigInteger, nullable=False)  # bytes
     disk_percent = Column(Float, nullable=False)
     
     # Network metrics (aggregated)
-    network_bytes_sent = Column(Integer, nullable=True)  # bytes
-    network_bytes_recv = Column(Integer, nullable=True)  # bytes
+    network_bytes_sent = Column(BigInteger, nullable=True)  # bytes
+    network_bytes_recv = Column(BigInteger, nullable=True)  # bytes
     
     # System info
     hostname = Column(String(255), nullable=True)
     platform = Column(String(50), nullable=True)
     uptime_seconds = Column(Float, nullable=True)
     
+    # GPU metrics
+    gpu_count = Column(Integer, default=0)
+    gpus = relationship("GpuMetrics", back_populates="metric")
+    
     # Index for time-based queries
     __table_args__ = (
         Index('idx_timestamp', 'timestamp'),
     )
+
+
+class GpuMetrics(Base):
+    """Model for storing GPU metrics."""
+    __tablename__ = "gpu_metrics"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    metric_id = Column(Integer, ForeignKey("system_metrics.id"), nullable=False)
+    
+    name = Column(String(255), nullable=False)
+    driver_version = Column(String(50), nullable=True)
+    memory_total = Column(BigInteger, nullable=False)
+    memory_used = Column(BigInteger, nullable=False)
+    temperature = Column(Float, nullable=False)
+    utilization = Column(Float, nullable=False)
+    
+    metric = relationship("SystemMetrics", back_populates="gpus")
 
 
 class SystemLog(Base):

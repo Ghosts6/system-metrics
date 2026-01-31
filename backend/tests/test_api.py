@@ -1,6 +1,28 @@
 import pytest
 from fastapi.testclient import TestClient
-from app.services.metrics_service import metrics_service
+# from app.services.metrics_service import metrics_service # Removed as it's not used directly here
+
+
+@pytest.fixture(scope="function")
+def seeded_client(client: TestClient):
+    """Fixture to ensure some metrics and logs exist in the DB for /live, /history and /logs endpoints."""
+    metrics_data = get_test_metrics_data()
+    # Seed at least one metric for /live
+    client.post("/api/v1/metrics/collect", json=metrics_data)
+    # Add more data for history
+    for _ in range(5):
+        client.post("/api/v1/metrics/collect", json=metrics_data)
+    
+    # Seed some logs
+    for level in ["INFO", "WARNING", "ERROR"]:
+        client.post("/api/v1/logs/", json={
+            "level": level,
+            "message": f"Test {level} message seeded by fixture"
+        })
+    client.post("/api/v1/logs/", json={"level": "INFO", "message": "Info message for filter test"})
+    client.post("/api/v1/logs/", json={"level": "ERROR", "message": "Error message for filter test"})
+    
+    return client
 
 
 def get_test_metrics_data():
@@ -23,13 +45,24 @@ def get_test_metrics_data():
         "network_bytes_recv": 200000,
         "hostname": "test-host",
         "platform": "Linux",
-        "uptime_seconds": 3600.0
+        "uptime_seconds": 3600.0,
+        "gpu_count": 1,
+        "gpus": [
+            {
+                "name": "NVIDIA GeForce RTX 5070",
+                "driver_version": "580.95.05",
+                "memory_total": 12884901888,
+                "memory_used": 546200064,
+                "temperature": 36.0,
+                "utilization": 1.0
+            }
+        ]
     }
 
 
-def test_metrics_live_endpoint(client: TestClient):
+def test_metrics_live_endpoint(seeded_client: TestClient):
     """Test live metrics endpoint."""
-    response = client.get("/api/v1/metrics/live")
+    response = seeded_client.get("/api/v1/metrics/live")
     assert response.status_code == 200
     data = response.json()
     
@@ -41,12 +74,24 @@ def test_metrics_live_endpoint(client: TestClient):
     assert "disk_total" in data
     assert "disk_percent" in data
     assert "timestamp" in data
+    assert "gpu_count" in data
+    assert "gpus" in data
     
     # Verify data types and ranges
     assert isinstance(data["cpu_percent"], (int, float))
     assert 0 <= data["cpu_percent"] <= 100
     assert isinstance(data["memory_percent"], (int, float))
     assert 0 <= data["memory_percent"] <= 100
+    assert isinstance(data["gpu_count"], int)
+    assert data["gpu_count"] >= 0
+    if data["gpu_count"] > 0:
+        assert isinstance(data["gpus"], list)
+        assert len(data["gpus"]) == data["gpu_count"]
+        gpu = data["gpus"][0]
+        assert "name" in gpu
+        assert "utilization" in gpu
+        assert isinstance(gpu["utilization"], (int, float))
+        assert 0 <= gpu["utilization"] <= 100
 
 
 def test_metrics_collect_endpoint(client: TestClient):
@@ -61,17 +106,23 @@ def test_metrics_collect_endpoint(client: TestClient):
     assert "cpu_percent" in data
     assert "memory_percent" in data
     assert "disk_percent" in data
-
-
-def test_metrics_history_endpoint(client: TestClient):
-    """Test metrics history endpoint."""
-    # First, create some metrics
-    metrics_data = get_test_metrics_data()
-    client.post("/api/v1/metrics/collect", json=metrics_data)
-    client.post("/api/v1/metrics/collect", json=metrics_data)
+    assert "gpu_count" in data
+    assert "gpus" in data
     
+    if data["gpu_count"] > 0:
+        assert isinstance(data["gpus"], list)
+        assert len(data["gpus"]) == data["gpu_count"]
+        gpu = data["gpus"][0]
+        assert "name" in gpu
+        assert "utilization" in gpu
+        assert isinstance(gpu["utilization"], (int, float))
+        assert 0 <= gpu["utilization"] <= 100
+
+
+def test_metrics_history_endpoint(seeded_client: TestClient):
+    """Test metrics history endpoint."""
     # Get history
-    response = client.get("/api/v1/metrics/history?page=1&page_size=10")
+    response = seeded_client.get("/api/v1/metrics/history?page=1&page_size=10")
     assert response.status_code == 200
     data = response.json()
     
@@ -81,18 +132,13 @@ def test_metrics_history_endpoint(client: TestClient):
     assert "page_size" in data
     assert "pages" in data
     assert isinstance(data["items"], list)
-    assert data["total"] >= 2
+    assert data["total"] >= 2 # Should have at least one from fixture + one from test
 
 
-def test_metrics_history_pagination(client: TestClient):
+def test_metrics_history_pagination(seeded_client: TestClient):
     """Test metrics history pagination."""
-    # Create multiple metrics
-    metrics_data = get_test_metrics_data()
-    for _ in range(5):
-        client.post("/api/v1/metrics/collect", json=metrics_data)
-    
     # Test first page
-    response = client.get("/api/v1/metrics/history?page=1&page_size=2")
+    response = seeded_client.get("/api/v1/metrics/history?page=1&page_size=2")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
@@ -100,22 +146,22 @@ def test_metrics_history_pagination(client: TestClient):
     assert data["page_size"] == 2
     
     # Test second page
-    response = client.get("/api/v1/metrics/history?page=2&page_size=2")
+    response = seeded_client.get("/api/v1/metrics/history?page=2&page_size=2")
     assert response.status_code == 200
     data = response.json()
     assert len(data["items"]) == 2
     assert data["page"] == 2
 
 
-def test_metrics_history_invalid_pagination(client: TestClient):
+def test_metrics_history_invalid_pagination(seeded_client: TestClient):
     """Test metrics history with invalid pagination parameters."""
     # Invalid page (should default or error)
-    response = client.get("/api/v1/metrics/history?page=0&page_size=10")
+    response = seeded_client.get("/api/v1/metrics/history?page=0&page_size=10")
     # Should either return 422 (validation error) or handle gracefully
     assert response.status_code in [200, 422]
     
     # Invalid page_size (too large)
-    response = client.get("/api/v1/metrics/history?page=1&page_size=10000")
+    response = seeded_client.get("/api/v1/metrics/history?page=1&page_size=10000")
     # Should either return 422 or cap at max
     assert response.status_code in [200, 422]
 
@@ -155,33 +201,22 @@ def test_logs_create_minimal(client: TestClient):
     assert data["message"] == "Minimal log message"
 
 
-def test_logs_get_endpoint(client: TestClient):
+def test_logs_get_endpoint(seeded_client: TestClient):
     """Test logs retrieval endpoint."""
-    # Create some logs
-    for level in ["INFO", "WARNING", "ERROR"]:
-        client.post("/api/v1/logs/", json={
-            "level": level,
-            "message": f"Test {level} message"
-        })
-    
     # Get all logs
-    response = client.get("/api/v1/logs/?page=1&page_size=10")
+    response = seeded_client.get("/api/v1/logs/?page=1&page_size=10")
     assert response.status_code == 200
     data = response.json()
     
     assert "items" in data
     assert "total" in data
-    assert len(data["items"]) >= 3
+    assert len(data["items"]) >= 3 # At least 3 seeded logs
 
 
-def test_logs_filter_by_level(client: TestClient):
+def test_logs_filter_by_level(seeded_client: TestClient):
     """Test filtering logs by level."""
-    # Create logs with different levels
-    client.post("/api/v1/logs/", json={"level": "INFO", "message": "Info message"})
-    client.post("/api/v1/logs/", json={"level": "ERROR", "message": "Error message"})
-    
     # Filter by ERROR level
-    response = client.get("/api/v1/logs/?level=ERROR&page=1&page_size=10")
+    response = seeded_client.get("/api/v1/logs/?level=ERROR&page=1&page_size=10")
     assert response.status_code == 200
     data = response.json()
     
@@ -207,9 +242,9 @@ def test_logs_get_by_id(client: TestClient):
     assert data["message"] == "Test message for ID retrieval"
 
 
-def test_logs_get_nonexistent_id(client: TestClient):
+def test_logs_get_nonexistent_id(seeded_client: TestClient):
     """Test getting a non-existent log ID."""
-    response = client.get("/api/v1/logs/99999")
+    response = seeded_client.get("/api/v1/logs/99999")
     assert response.status_code == 404
 
 
