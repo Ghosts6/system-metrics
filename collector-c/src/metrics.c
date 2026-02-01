@@ -555,7 +555,7 @@ static char* get_command_output(const char* cmd) {
 }
 
 
-int get_gpu_metrics(SystemMetrics *metrics) {
+int get_nvidia_gpu_metrics(SystemMetrics *metrics) {
     metrics->gpu_count = 0;
     const char* cmd = "nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,temperature.gpu,utilization.gpu --format=csv,noheader,nounits";
     
@@ -590,6 +590,222 @@ int get_gpu_metrics(SystemMetrics *metrics) {
     metrics->gpu_count = i;
     free(output);
     return 0;
+}
+
+int get_amd_gpu_metrics(SystemMetrics *metrics) {
+    metrics->gpu_count = 0;
+    const char* cmd = "rocm-smi --showid --showdriver --showmeminfo vram --showtemp --showuse --csv";
+    
+    char* output = get_command_output(cmd);
+    if (!output) {
+        return 0; // rocm-smi not found or failed
+    }
+
+    // Skip the header line
+    char* current_line = strtok(output, "\n");
+    if (current_line != NULL) {
+        current_line = strtok(NULL, "\n");
+    }
+    
+    int i = 0;
+    while (current_line != NULL && i < 4) {
+        GpuMetrics* gpu = &metrics->gpus[i];
+        
+        char* token = strtok(current_line, ",");
+        
+        char* gpu_id = strtok(NULL, ",");
+        char* driver_version = strtok(NULL, ",");
+        char* vram_total_str = strtok(NULL, ",");
+        char* vram_used_str = strtok(NULL, ",");
+        char* temperature_str = strtok(NULL, ",");
+        char* utilization_str = strtok(NULL, ",");
+        
+        if (gpu_id) {
+            snprintf(gpu->name, sizeof(gpu->name) - 1, "AMD GPU %s", gpu_id);
+            gpu->name[sizeof(gpu->name) - 1] = '\0';
+        }
+        if (driver_version) strncpy(gpu->driver_version, driver_version, sizeof(gpu->driver_version) - 1);
+        if (vram_total_str) gpu->memory_total = (uint64_t)atoll(vram_total_str);
+        if (vram_used_str) gpu->memory_used = (uint64_t)atoll(vram_used_str);
+        if (temperature_str) gpu->temperature = atof(temperature_str);
+        if (utilization_str) gpu->utilization = atof(utilization_str);
+        
+        i++;
+        current_line = strtok(NULL, "\n");
+    }
+    
+    metrics->gpu_count = i;
+    free(output);
+    return 0;
+}
+
+int get_intel_gpu_metrics(SystemMetrics *metrics) {
+    metrics->gpu_count = 0;
+    FILE *fp;
+    char path[256];
+    char line[256];
+    int i = 0;
+
+    // Get system-wide i915 driver version
+    char driver_version[64] = "unknown";
+    fp = fopen("/sys/module/i915/version", "r");
+    if (fp) {
+        if (fgets(line, sizeof(line), fp)) {
+            line[strcspn(line, "\n")] = 0;
+            strncpy(driver_version, line, sizeof(driver_version) - 1);
+        }
+        fclose(fp);
+    }
+
+    for (i = 0; i < 4; i++) { // Check first few cards
+        GpuMetrics* gpu = &metrics->gpus[i];
+        bool intel_gpu_found = false;
+
+        // Check if it's an Intel GPU (using vendor ID 0x8086)
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/vendor", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            char vendor_id[10];
+            if (fgets(vendor_id, sizeof(vendor_id), fp) != NULL) {
+                if (strncmp(vendor_id, "0x8086", 6) == 0) { // Intel vendor ID
+                    intel_gpu_found = true;
+                }
+            }
+            fclose(fp);
+        }
+
+        if (!intel_gpu_found) {
+            continue;
+        }
+
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/uevent", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            while (fgets(line, sizeof(line), fp)) {
+                if (strncmp(line, "PCI_ID=", 7) == 0) {
+                    char *device_id_start = strchr(line + 7, ':');
+                    if (device_id_start) {
+                        char device_id[5];
+                        strncpy(device_id, device_id_start + 1, 4);
+                        device_id[4] = '\0';
+                        snprintf(gpu->name, sizeof(gpu->name) - 1, "Intel GPU (0x%s)", device_id);
+                        gpu->name[sizeof(gpu->name) - 1] = '\0';
+                        break;
+                    }
+                }
+            }
+            fclose(fp);
+        }
+        if (strlen(gpu->name) == 0) {
+            snprintf(gpu->name, sizeof(gpu->name) - 1, "Intel GPU Card%d", i);
+            gpu->name[sizeof(gpu->name) - 1] = '\0';
+        }
+
+        // --- Driver Version ---
+        strncpy(gpu->driver_version, driver_version, sizeof(gpu->driver_version) - 1);
+        gpu->driver_version[sizeof(gpu->driver_version) - 1] = '\0';
+
+        // --- Memory Total/Used---
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/gt_total_lmem_bytes", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            if (fgets(line, sizeof(line), fp)) gpu->memory_total = strtoull(line, NULL, 10);
+            fclose(fp);
+        }
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/gt_used_lmem_bytes", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            if (fgets(line, sizeof(line), fp)) gpu->memory_used = strtoull(line, NULL, 10);
+            fclose(fp);
+        }
+        // Fallback or alternative
+        if (gpu->memory_total == 0) {
+            gpu->memory_total = metrics->memory_total;
+        }
+
+
+        // --- Temperature ---
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/hwmon/hwmon*/temp1_input", i);
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/hwmon/hwmon0/temp1_input", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            if (fgets(line, sizeof(line), fp)) {
+                gpu->temperature = atof(line) / 1000.0;
+            }
+            fclose(fp);
+        }
+
+        // --- Utilization (Render engine) ---
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/engine/rcs0/utilization", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            if (fgets(line, sizeof(line), fp)) {
+                gpu->utilization = atof(line); // Percentage 0-100
+            }
+            fclose(fp);
+        }
+
+        metrics->gpu_count++;
+    }
+    
+    return 0;
+}
+
+GpuVendor detect_gpu_vendor() {
+    char* output;
+
+    // Check for NVIDIA
+    output = get_command_output("nvidia-smi -L");
+    if (output != NULL) {
+        free(output);
+        return GPU_VENDOR_NVIDIA;
+    }
+
+    // Check for AMD
+    output = get_command_output("rocm-smi --version");
+    if (output != NULL) {
+        free(output);
+        return GPU_VENDOR_AMD;
+    }
+
+    // Check for Intel (via sysfs)
+    FILE *fp;
+    char path[256];
+    char vendor_id[10];
+
+    for (int i = 0; i < 4; i++) { // Check first few cards
+        snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/vendor", i);
+        fp = fopen(path, "r");
+        if (fp) {
+            if (fgets(vendor_id, sizeof(vendor_id), fp) != NULL) {
+                if (strncmp(vendor_id, "0x8086", 6) == 0) { // Intel vendor ID
+                    fclose(fp);
+                    return GPU_VENDOR_INTEL;
+                }
+            }
+            fclose(fp);
+        }
+    }
+
+    return GPU_VENDOR_NONE;
+}
+
+
+int get_gpu_metrics(SystemMetrics *metrics) {
+    metrics->gpu_count = 0; // Reset GPU count
+    GpuVendor vendor = detect_gpu_vendor();
+
+    switch (vendor) {
+        case GPU_VENDOR_NVIDIA:
+            return get_nvidia_gpu_metrics(metrics);
+        case GPU_VENDOR_AMD:
+            return get_amd_gpu_metrics(metrics);
+        case GPU_VENDOR_INTEL:
+            return get_intel_gpu_metrics(metrics);
+        case GPU_VENDOR_NONE:
+        default:
+            return 0; // No supported GPU found
+    }
 }
 #else
 int get_gpu_metrics(SystemMetrics* metrics) {

@@ -106,6 +106,19 @@ class MetricsService:
             
             metrics_json = json.loads(result.stdout.strip())
             
+            # Parse GPU metrics
+            gpu_metrics_list = []
+            if "gpus" in metrics_json:
+                for gpu_data in metrics_json["gpus"]:
+                    gpu_metrics_list.append(GpuMetricsBase(
+                        name=gpu_data.get("name", "Unknown GPU"),
+                        driver_version=gpu_data.get("driver_version", "N/A"),
+                        memory_total=int(gpu_data.get("memory_total", 0)),
+                        memory_used=int(gpu_data.get("memory_used", 0)),
+                        temperature=float(gpu_data.get("temperature", 0.0)),
+                        utilization=float(gpu_data.get("utilization", 0.0))
+                    ))
+
             return SystemMetricsCreate(
                 cpu_percent=float(metrics_json.get("cpu_percent", 0)),
                 cpu_count=int(metrics_json.get("cpu_count", 0)),
@@ -123,7 +136,10 @@ class MetricsService:
                 network_bytes_sent=int(metrics_json.get("network_bytes_sent")) if metrics_json.get("network_bytes_sent") else None,
                 network_bytes_recv=int(metrics_json.get("network_bytes_recv")) if metrics_json.get("network_bytes_recv") else None,
                 hostname=metrics_json.get("hostname"),
-                platform=metrics_json.get("platform")
+                platform=metrics_json.get("platform"),
+                uptime_seconds=float(metrics_json.get("uptime_seconds", 0.0)),
+                gpu_count=int(metrics_json.get("gpu_count", 0)),
+                gpus=gpu_metrics_list
             )
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, json.JSONDecodeError, KeyError, ValueError) as e:
             return None

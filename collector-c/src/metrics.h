@@ -2,6 +2,14 @@
 #define METRICS_H
 
 #include <stdint.h>
+#include <stdbool.h>
+
+typedef enum {
+    GPU_VENDOR_NONE,
+    GPU_VENDOR_NVIDIA,
+    GPU_VENDOR_AMD,
+    GPU_VENDOR_INTEL
+} GpuVendor;
 
 typedef struct {
     char name[256];
@@ -47,5 +55,9 @@ int get_disk_metrics(SystemMetrics *metrics);
 int get_network_metrics(SystemMetrics *metrics);
 int get_system_info(SystemMetrics *metrics);
 int get_gpu_metrics(SystemMetrics *metrics);
+
+#ifdef __linux__
+char* get_command_output(const char* cmd);
+#endif
 
 #endif
