@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
         // Auto-fetch data on successful connection
         apiClient->fetchLiveMetrics();
         logViewer->refreshLogs();
+        apiClient->startLiveUpdates(defaultRefreshInterval);
     });
     
     QObject::connect(apiClient, &ApiClient::logsReceived, logViewer, &LogViewer::updateLogs);

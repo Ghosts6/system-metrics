@@ -5,12 +5,14 @@
 #include <QGridLayout>
 #include <QDateTime>
 #include <QJsonObject>
+#include <QSpacerItem>
 
 DashboardWidget::DashboardWidget(QWidget *parent)
     : QWidget(parent)
     , m_prevNetworkSent(0)
     , m_prevNetworkRecv(0)
     , m_lastMetricTimestamp(QDateTime())
+    , m_currentRow(0)
 {
     setupUI();
 }
@@ -42,18 +44,20 @@ void DashboardWidget::setupUI()
     mainLayout->addLayout(systemInfoLayout);
 
     // Metrics grid
-    QGridLayout *gridLayout = new QGridLayout();
-    gridLayout->setSpacing(20);
-    gridLayout->setColumnStretch(1, 2);
+    m_metricsLayout = new QGridLayout();
+    m_metricsLayout->setSpacing(20);
+    m_metricsLayout->setColumnStretch(1, 1);
+
+    m_currentRow = 0;
 
     // CPU section
-    QLabel *cpuTitle = new QLabel("CPU Usage", this);
-    cpuTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
-    gridLayout->addWidget(cpuTitle, 0, 0, 1, 2);
+    m_cpuTitle = new QLabel("CPU Usage", this);
+    m_cpuTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
+    m_metricsLayout->addWidget(m_cpuTitle, m_currentRow++, 0, 1, 2);
     
     m_cpuLabel = new QLabel("0%", this);
     m_cpuLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
-    gridLayout->addWidget(m_cpuLabel, 1, 0);
+    m_metricsLayout->addWidget(m_cpuLabel, m_currentRow, 0);
     
     m_cpuBar = new QProgressBar(this);
     m_cpuBar->setRange(0, 100);
@@ -64,33 +68,30 @@ void DashboardWidget::setupUI()
         "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
-    gridLayout->addWidget(m_cpuBar, 1, 1);
+    m_metricsLayout->addWidget(m_cpuBar, m_currentRow, 1);
     
     m_cpuDetailLabel = new QLabel("Cores: -", this);
     m_cpuDetailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
-    gridLayout->addWidget(m_cpuDetailLabel, 2, 0, 1, 2);
+    m_metricsLayout->addWidget(m_cpuDetailLabel, m_currentRow + 1, 0, 1, 2);
+    m_currentRow += 2;
 
-    // GPU section title (will be hidden if no GPUs, initially placed but hidden)
+    // Add spacer after CPU section
+    m_metricsLayout->addItem(new QSpacerItem(20, 20, QSizePolicy::Minimum, QSizePolicy::Fixed), m_currentRow++, 0, 1, 2);
+
+    // GPU section title (will be shown/hidden dynamically)
     m_gpuSectionTitle = new QLabel("GPU Usage", this);
     m_gpuSectionTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
-    gridLayout->addWidget(m_gpuSectionTitle, 3, 0, 1, 2);
-    m_gpuSectionTitle->hide(); // Initially hidden
+    m_metricsLayout->addWidget(m_gpuSectionTitle, m_currentRow++, 0, 1, 2);
+    m_gpuSectionTitle->hide();
 
-    m_gpuLayout = new QGridLayout();
-    m_gpuLayout->setSpacing(10);
-    m_gpuLayout->setColumnStretch(0, 1);
-    m_gpuLayout->setColumnStretch(1, 2);
-    gridLayout->addLayout(m_gpuLayout, 4, 0, 1, 2);
+    // Reserve space for GPU widgets (they will be inserted here dynamically)
+    m_gpuStartRow = m_currentRow;
 
-    // Memory section (starts after GPU section, which is dynamically sized)
-    QLabel *memoryTitle = new QLabel("Memory Usage", this);
-    memoryTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
-    gridLayout->addWidget(memoryTitle, 5, 0, 1, 2);
-    
+    // Memory section
+    m_memoryTitle = new QLabel("Memory Usage", this);
+    m_memoryTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_memoryLabel = new QLabel("0%", this);
     m_memoryLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
-    gridLayout->addWidget(m_memoryLabel, 6, 0);
-    
     m_memoryBar = new QProgressBar(this);
     m_memoryBar->setRange(0, 100);
     m_memoryBar->setValue(0);
@@ -100,21 +101,14 @@ void DashboardWidget::setupUI()
         "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
-    gridLayout->addWidget(m_memoryBar, 6, 1);
-    
     m_memoryDetailLabel = new QLabel("Used: - / Total: -", this);
     m_memoryDetailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
-    gridLayout->addWidget(m_memoryDetailLabel, 7, 0, 1, 2);
 
-    // Disk section (rows adjusted)
-    QLabel *diskTitle = new QLabel("Disk Usage", this);
-    diskTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
-    gridLayout->addWidget(diskTitle, 8, 0, 1, 2);
-    
+    // Disk section
+    m_diskTitle = new QLabel("Disk Usage", this);
+    m_diskTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_diskLabel = new QLabel("0%", this);
     m_diskLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
-    gridLayout->addWidget(m_diskLabel, 9, 0);
-    
     m_diskBar = new QProgressBar(this);
     m_diskBar->setRange(0, 100);
     m_diskBar->setValue(0);
@@ -124,30 +118,21 @@ void DashboardWidget::setupUI()
         "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
-    gridLayout->addWidget(m_diskBar, 9, 1);
-    
     m_diskDetailLabel = new QLabel("Used: - / Total: -", this);
     m_diskDetailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
-    gridLayout->addWidget(m_diskDetailLabel, 10, 0, 1, 2);
 
-    // Network section (rows adjusted)
-    QLabel *networkTitle = new QLabel("Network Activity", this);
-    networkTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
-    gridLayout->addWidget(networkTitle, 11, 0, 1, 2);
-    
+    // Network section
+    m_networkTitle = new QLabel("Network Activity", this);
+    m_networkTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_networkSentLabel = new QLabel("Sent: 0 B", this);
     m_networkSentLabel->setStyleSheet("color: #e0e0e0; font-size: 14px; padding: 5px;");
-    gridLayout->addWidget(m_networkSentLabel, 12, 0);
-    
     m_networkRecvLabel = new QLabel("Received: 0 B", this);
     m_networkRecvLabel->setStyleSheet("color: #e0e0e0; font-size: 14px; padding: 5px;");
-    gridLayout->addWidget(m_networkRecvLabel, 12, 1);
-    
-    m_networkSpeedLabel = new QLabel("Speed: -", this);
-    m_networkSpeedLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
-    gridLayout->addWidget(m_networkSpeedLabel, 13, 0, 1, 2);
 
-    mainLayout->addLayout(gridLayout);
+    // Initially place all sections (will be repositioned if GPUs exist)
+    updateSectionPositions();
+
+    mainLayout->addLayout(m_metricsLayout);
     mainLayout->addStretch();
 
     // Status bar
@@ -162,6 +147,54 @@ void DashboardWidget::setupUI()
     statusLayout->addWidget(m_lastUpdateLabel);
     
     mainLayout->addLayout(statusLayout);
+}
+
+void DashboardWidget::updateSectionPositions()
+{
+    // Calculate current row after GPU section
+    int currentRow = m_gpuStartRow;
+    
+    // Account for GPU widgets
+    currentRow += m_gpuDisplayWidgets.size() * 2; // Each GPU takes 2 rows
+    
+    // Add spacer before memory section if GPUs exist
+    if (!m_gpuDisplayWidgets.isEmpty()) {
+        currentRow++; // Space after GPU section
+    }
+
+    // Remove all non-GPU widgets from layout
+    m_metricsLayout->removeWidget(m_memoryTitle);
+    m_metricsLayout->removeWidget(m_memoryLabel);
+    m_metricsLayout->removeWidget(m_memoryBar);
+    m_metricsLayout->removeWidget(m_memoryDetailLabel);
+    
+    m_metricsLayout->removeWidget(m_diskTitle);
+    m_metricsLayout->removeWidget(m_diskLabel);
+    m_metricsLayout->removeWidget(m_diskBar);
+    m_metricsLayout->removeWidget(m_diskDetailLabel);
+
+    m_metricsLayout->removeWidget(m_networkTitle);
+    m_metricsLayout->removeWidget(m_networkSentLabel);
+    m_metricsLayout->removeWidget(m_networkRecvLabel);
+
+    // Re-add Memory section
+    m_metricsLayout->addWidget(m_memoryTitle, currentRow++, 0, 1, 2);
+    m_metricsLayout->addWidget(m_memoryLabel, currentRow, 0);
+    m_metricsLayout->addWidget(m_memoryBar, currentRow, 1);
+    m_metricsLayout->addWidget(m_memoryDetailLabel, currentRow + 1, 0, 1, 2);
+    currentRow += 2;
+
+    // Re-add Disk section
+    m_metricsLayout->addWidget(m_diskTitle, currentRow++, 0, 1, 2);
+    m_metricsLayout->addWidget(m_diskLabel, currentRow, 0);
+    m_metricsLayout->addWidget(m_diskBar, currentRow, 1);
+    m_metricsLayout->addWidget(m_diskDetailLabel, currentRow + 1, 0, 1, 2);
+    currentRow += 2;
+
+    // Re-add Network section
+    m_metricsLayout->addWidget(m_networkTitle, currentRow++, 0, 1, 2);
+    m_metricsLayout->addWidget(m_networkSentLabel, currentRow, 0);
+    m_metricsLayout->addWidget(m_networkRecvLabel, currentRow, 1);
 }
 
 void DashboardWidget::updateMetrics(const QJsonObject &metrics)
@@ -257,14 +290,13 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
             if (timeElapsedMs > 0) {
                 double sentSpeed = (currentSent - m_prevNetworkSent) * 1000.0 / timeElapsedMs; // bytes/sec
                 double recvSpeed = (currentRecv - m_prevNetworkRecv) * 1000.0 / timeElapsedMs; // bytes/sec
-                m_networkSpeedLabel->setText(QString("Speed: S: %1/s R: %2/s")
-                                              .arg(formatNetworkSpeed(sentSpeed))
+                m_networkSentLabel->setText(QString("Sent: %1 (%2/s)")
+                                              .arg(formatBytes(currentSent))
+                                              .arg(formatNetworkSpeed(sentSpeed)));
+                m_networkRecvLabel->setText(QString("Received: %1 (%2/s)")
+                                              .arg(formatBytes(currentRecv))
                                               .arg(formatNetworkSpeed(recvSpeed)));
-            } else {
-                m_networkSpeedLabel->setText("Speed: 0 B/s");
             }
-        } else {
-            m_networkSpeedLabel->setText("Speed: --"); // Initial state or invalid timestamp
         }
 
         m_prevNetworkSent = currentSent;
@@ -273,25 +305,28 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
     }
 
     // GPU (dynamic handling of multiple GPUs)
-    if (metrics.contains("gpus") && metrics["gpus"].isArray()) {
-        QJsonArray gpusArray = metrics["gpus"].toArray();
-        m_gpuSectionTitle->setVisible(!gpusArray.isEmpty());
+    QJsonArray gpusArray = metrics.contains("gpus") && metrics["gpus"].isArray() ? metrics["gpus"].toArray() : QJsonArray();
 
-        // Update existing GPU display widgets or create new ones
-        for (int i = 0; i < gpusArray.size(); ++i) {
-            QJsonObject gpuData = gpusArray[i].toObject();
+    // Only rebuild GPU widgets if the count has changed
+    if (gpusArray.size() != m_gpuDisplayWidgets.size()) {
+        // Clear existing GPU widgets
+        for (const auto& widgets : m_gpuDisplayWidgets) {
+            m_metricsLayout->removeWidget(widgets.nameLabel);
+            m_metricsLayout->removeWidget(widgets.utilBar);
+            m_metricsLayout->removeWidget(widgets.detailLabel);
+            delete widgets.nameLabel;
+            delete widgets.utilBar;
+            delete widgets.detailLabel;
+        }
+        m_gpuDisplayWidgets.clear();
+
+        int currentRow = m_gpuStartRow;
+
+        if (!gpusArray.isEmpty()) {
+            m_gpuSectionTitle->show();
             
-            if (i < m_gpuDisplayWidgets.size()) {
-                // Update existing widgets
-                GpuDisplayWidgets &widgets = m_gpuDisplayWidgets[i];
-                double utilization = gpuData["utilization"].toDouble();
-                widgets.nameLabel->setText(formatPercent(utilization));
-                widgets.utilBar->setValue(static_cast<int>(utilization));
-
-                QString gpuName = gpuData["name"].toString();
-                widgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
-            } else {
-                // Create new set of widgets for this GPU
+            // Create and add new GPU widgets
+            for (int i = 0; i < gpusArray.size(); ++i) {
                 GpuDisplayWidgets newWidgets;
 
                 newWidgets.nameLabel = new QLabel("0%", this);
@@ -311,44 +346,32 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
                 newWidgets.detailLabel = new QLabel("Name: -", this);
                 newWidgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
 
-                int newRow = i * 2;
-                m_gpuLayout->addWidget(newWidgets.nameLabel, newRow, 0);
-                m_gpuLayout->addWidget(newWidgets.utilBar, newRow, 1);
-                m_gpuLayout->addWidget(newWidgets.detailLabel, newRow + 1, 0, 1, 2);
-
+                m_metricsLayout->addWidget(newWidgets.nameLabel, currentRow, 0);
+                m_metricsLayout->addWidget(newWidgets.utilBar, currentRow, 1);
+                m_metricsLayout->addWidget(newWidgets.detailLabel, currentRow + 1, 0, 1, 2);
+                
                 m_gpuDisplayWidgets.append(newWidgets);
-
-                // Now update the newly created widgets
-                double utilization = gpuData["utilization"].toDouble();
-                newWidgets.nameLabel->setText(formatPercent(utilization));
-                newWidgets.utilBar->setValue(static_cast<int>(utilization));
-                QString gpuName = gpuData["name"].toString();
-                newWidgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
+                currentRow += 2;
             }
+        } else {
+            m_gpuSectionTitle->hide();
         }
 
-        // Remove excess GPU display widgets if fewer GPUs are reported
-        while (m_gpuDisplayWidgets.size() > gpusArray.size()) {
-            GpuDisplayWidgets widgetsToRemove = m_gpuDisplayWidgets.takeLast();
-            m_gpuLayout->removeWidget(widgetsToRemove.nameLabel);
-            m_gpuLayout->removeWidget(widgetsToRemove.utilBar);
-            m_gpuLayout->removeWidget(widgetsToRemove.detailLabel);
-            delete widgetsToRemove.nameLabel;
-            delete widgetsToRemove.utilBar;
-            delete widgetsToRemove.detailLabel;
-        }
-    } else {
-        // No GPUs reported, remove all existing widgets
-        m_gpuSectionTitle->hide();
-        while (m_gpuDisplayWidgets.size() > 0) {
-            GpuDisplayWidgets widgetsToRemove = m_gpuDisplayWidgets.takeLast();
-            m_gpuLayout->removeWidget(widgetsToRemove.nameLabel);
-            m_gpuLayout->removeWidget(widgetsToRemove.utilBar);
-            m_gpuLayout->removeWidget(widgetsToRemove.detailLabel);
-            delete widgetsToRemove.nameLabel;
-            delete widgetsToRemove.utilBar;
-            delete widgetsToRemove.detailLabel;
-        }
+        // Reposition all sections after GPU widgets
+        updateSectionPositions();
+    }
+    
+    // Update GPU widget values (without changing layout)
+    for (int i = 0; i < gpusArray.size(); ++i) {
+        QJsonObject gpuData = gpusArray[i].toObject();
+        GpuDisplayWidgets &widgets = m_gpuDisplayWidgets[i];
+        
+        double utilization = gpuData["utilization"].toDouble();
+        widgets.nameLabel->setText(formatPercent(utilization));
+        widgets.utilBar->setValue(static_cast<int>(utilization));
+
+        QString gpuName = gpuData["name"].toString();
+        widgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
     }
 }
 
@@ -390,10 +413,10 @@ QString DashboardWidget::formatUptime(qint64 seconds)
     if (days > 0) {
         uptimeString += QString("%1d ").arg(days);
     }
-    if (hours > 0 || days > 0) { // Show hours if days are present or if hours exist
+    if (hours > 0 || days > 0) {
         uptimeString += QString("%1h ").arg(hours);
     }
-    if (minutes > 0 || hours > 0 || days > 0) { // Show minutes if hours/days are present or if minutes exist
+    if (minutes > 0 || hours > 0 || days > 0) {
         uptimeString += QString("%1m ").arg(minutes);
     }
     uptimeString += QString("%1s").arg(remainingSeconds);

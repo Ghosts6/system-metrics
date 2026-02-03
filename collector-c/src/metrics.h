@@ -57,7 +57,7 @@ int get_system_info(SystemMetrics *metrics);
 int get_gpu_metrics(SystemMetrics *metrics);
 
 #ifdef __linux__
-char* get_command_output(const char* cmd);
+static char* get_command_output(const char* cmd);
 #endif
 
 #endif
