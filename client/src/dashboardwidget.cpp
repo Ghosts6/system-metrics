@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QSpacerItem>
+#include <QRegularExpression>
 
 DashboardWidget::DashboardWidget(QWidget *parent)
     : QWidget(parent)
@@ -31,10 +32,13 @@ void DashboardWidget::setupUI()
     QHBoxLayout *systemInfoLayout = new QHBoxLayout();
     m_hostnameLabel = new QLabel("Hostname: -", this);
     m_hostnameLabel->setStyleSheet("color: #b0b0b0; font-size: 12px; padding: 5px;");
+    m_hostnameLabel->setMinimumWidth(150);
     m_platformLabel = new QLabel("Platform: -", this);
     m_platformLabel->setStyleSheet("color: #b0b0b0; font-size: 12px; padding: 5px;");
+    m_platformLabel->setMinimumWidth(150);
     m_uptimeLabel = new QLabel("Uptime: -", this);
     m_uptimeLabel->setStyleSheet("color: #b0b0b0; font-size: 12px; padding: 5px;");
+    m_uptimeLabel->setMinimumWidth(150);
     
     systemInfoLayout->addWidget(m_hostnameLabel);
     systemInfoLayout->addWidget(m_platformLabel);
@@ -46,7 +50,9 @@ void DashboardWidget::setupUI()
     // Metrics grid
     m_metricsLayout = new QGridLayout();
     m_metricsLayout->setSpacing(20);
-    m_metricsLayout->setColumnStretch(1, 1);
+    m_metricsLayout->setColumnStretch(0, 0); // Fixed width for label column
+    m_metricsLayout->setColumnStretch(1, 1); // Expanding for progress bar column
+    m_metricsLayout->setColumnMinimumWidth(0, 120); // Minimum width for percentage labels
 
     m_currentRow = 0;
 
@@ -57,6 +63,9 @@ void DashboardWidget::setupUI()
     
     m_cpuLabel = new QLabel("0%", this);
     m_cpuLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
+    m_cpuLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_cpuLabel->setMinimumWidth(120);
+    m_cpuLabel->setMaximumWidth(120);
     m_metricsLayout->addWidget(m_cpuLabel, m_currentRow, 0);
     
     m_cpuBar = new QProgressBar(this);
@@ -64,8 +73,11 @@ void DashboardWidget::setupUI()
     m_cpuBar->setValue(0);
     m_cpuBar->setTextVisible(true);
     m_cpuBar->setFormat("%p%");
+    m_cpuBar->setMinimumHeight(35);
+    m_cpuBar->setMaximumHeight(35);
+    m_cpuBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_cpuBar->setStyleSheet(
-        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
+        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
     m_metricsLayout->addWidget(m_cpuBar, m_currentRow, 1);
@@ -92,13 +104,19 @@ void DashboardWidget::setupUI()
     m_memoryTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_memoryLabel = new QLabel("0%", this);
     m_memoryLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
+    m_memoryLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_memoryLabel->setMinimumWidth(120);
+    m_memoryLabel->setMaximumWidth(120);
     m_memoryBar = new QProgressBar(this);
     m_memoryBar->setRange(0, 100);
     m_memoryBar->setValue(0);
     m_memoryBar->setTextVisible(true);
     m_memoryBar->setFormat("%p%");
+    m_memoryBar->setMinimumHeight(35);
+    m_memoryBar->setMaximumHeight(35);
+    m_memoryBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_memoryBar->setStyleSheet(
-        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
+        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
     m_memoryDetailLabel = new QLabel("Used: - / Total: -", this);
@@ -109,13 +127,19 @@ void DashboardWidget::setupUI()
     m_diskTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_diskLabel = new QLabel("0%", this);
     m_diskLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
+    m_diskLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_diskLabel->setMinimumWidth(120);
+    m_diskLabel->setMaximumWidth(120);
     m_diskBar = new QProgressBar(this);
     m_diskBar->setRange(0, 100);
     m_diskBar->setValue(0);
     m_diskBar->setTextVisible(true);
     m_diskBar->setFormat("%p%");
+    m_diskBar->setMinimumHeight(35);
+    m_diskBar->setMaximumHeight(35);
+    m_diskBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_diskBar->setStyleSheet(
-        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
+        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
         "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
     );
     m_diskDetailLabel = new QLabel("Used: - / Total: -", this);
@@ -126,8 +150,10 @@ void DashboardWidget::setupUI()
     m_networkTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_networkSentLabel = new QLabel("Sent: 0 B", this);
     m_networkSentLabel->setStyleSheet("color: #e0e0e0; font-size: 14px; padding: 5px;");
+    m_networkSentLabel->setMinimumWidth(200);
     m_networkRecvLabel = new QLabel("Received: 0 B", this);
     m_networkRecvLabel->setStyleSheet("color: #e0e0e0; font-size: 14px; padding: 5px;");
+    m_networkRecvLabel->setMinimumWidth(200);
 
     // Initially place all sections (will be repositioned if GPUs exist)
     updateSectionPositions();
@@ -213,8 +239,28 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
         m_cpuLabel->setText(formatPercent(cpuPercent));
         m_cpuBar->setValue(static_cast<int>(cpuPercent));
         
+        // Build CPU detail string with cores and brand
+        QString cpuDetail;
         if (metrics.contains("cpu_count")) {
-            m_cpuDetailLabel->setText(QString("Cores: %1").arg(metrics["cpu_count"].toInt()));
+            cpuDetail = QString("Cores: %1").arg(metrics["cpu_count"].toInt());
+        }
+        
+        if (metrics.contains("cpu_brand")) {
+            QString cpuBrand = metrics["cpu_brand"].toString();
+            // Extract model name (e.g., "i7-12700KF" from "12th Gen Intel(R) Core(TM) i7-12700KF")
+            QString modelName = extractCpuModel(cpuBrand);
+            
+            if (!modelName.isEmpty()) {
+                if (!cpuDetail.isEmpty()) {
+                    cpuDetail += QString("  |  %1").arg(modelName);
+                } else {
+                    cpuDetail = modelName;
+                }
+            }
+        }
+        
+        if (!cpuDetail.isEmpty()) {
+            m_cpuDetailLabel->setText(cpuDetail);
         }
     }
 
@@ -331,17 +377,22 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
 
                 newWidgets.nameLabel = new QLabel("0%", this);
                 newWidgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
+                newWidgets.nameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+                newWidgets.nameLabel->setMinimumWidth(120);
+                newWidgets.nameLabel->setMaximumWidth(120);
 
                 newWidgets.utilBar = new QProgressBar(this);
                 newWidgets.utilBar->setRange(0, 100);
                 newWidgets.utilBar->setValue(0);
                 newWidgets.utilBar->setTextVisible(true);
                 newWidgets.utilBar->setFormat("%p%");
+                newWidgets.utilBar->setMinimumHeight(35);
+                newWidgets.utilBar->setMaximumHeight(35);
+                newWidgets.utilBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
                 newWidgets.utilBar->setStyleSheet(
-                    "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; height: 35px; }"
+                    "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
                     "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
                 );
-                newWidgets.utilBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
                 newWidgets.detailLabel = new QLabel("Name: -", this);
                 newWidgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
@@ -373,6 +424,51 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
         QString gpuName = gpuData["name"].toString();
         widgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
     }
+}
+
+QString DashboardWidget::extractCpuModel(const QString &cpuBrand)
+{
+    // Extract the actual model name from CPU brand string
+    // Examples:
+    // "12th Gen Intel(R) Core(TM) i7-12700KF" -> "i7-12700KF"
+    // "AMD Ryzen 9 5950X 16-Core Processor" -> "Ryzen 9 5950X"
+    
+    QString brand = cpuBrand.trimmed();
+    
+    // Intel pattern: look for iX-XXXXX
+    QRegularExpression intelPattern("(i[3579]-\\w+)");
+    QRegularExpressionMatch intelMatch = intelPattern.match(brand);
+    if (intelMatch.hasMatch()) {
+        return intelMatch.captured(1);
+    }
+    
+    // AMD Ryzen pattern: look for "Ryzen X XXXX"
+    QRegularExpression ryzenPattern("(Ryzen [0-9] \\w+)");
+    QRegularExpressionMatch ryzenMatch = ryzenPattern.match(brand);
+    if (ryzenMatch.hasMatch()) {
+        QString match = ryzenMatch.captured(1);
+        // Remove "Processor" or "X-Core" suffix if present
+        match = match.remove(QRegularExpression("\\s+\\d+-Core.*"));
+        match = match.remove(QRegularExpression("\\s+Processor.*"));
+        return match.trimmed();
+    }
+    
+    // For other CPUs, try to get a reasonable substring
+    // Remove common noise words
+    brand = brand.remove(QRegularExpression("Gen\\s+"));
+    brand = brand.remove(QRegularExpression("Intel\\(R\\)\\s*"));
+    brand = brand.remove(QRegularExpression("AMD\\s+"));
+    brand = brand.remove(QRegularExpression("Core\\(TM\\)\\s*"));
+    brand = brand.remove(QRegularExpression("\\s+Processor.*"));
+    brand = brand.remove(QRegularExpression("\\s+\\d+-Core.*"));
+    brand = brand.trimmed();
+    
+    // Limit length to avoid breaking layout
+    if (brand.length() > 25) {
+        brand = brand.left(25) + "...";
+    }
+    
+    return brand;
 }
 
 QString DashboardWidget::formatBytes(qint64 bytes)

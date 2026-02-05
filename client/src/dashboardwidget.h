@@ -28,6 +28,7 @@ public slots:
 private:
     void setupUI();
     void updateSectionPositions();
+    QString extractCpuModel(const QString &cpuBrand);
     QString formatBytes(qint64 bytes);
     QString formatPercent(double percent);
     QString formatUptime(qint64 seconds);
