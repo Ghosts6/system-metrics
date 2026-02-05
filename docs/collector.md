@@ -93,14 +93,35 @@ Useful for piping to other tools, testing, or backend integration.
 ./collector --output > metrics.json
 ```
 
-## Collected Metrics
+### Collected Metrics
 
-- CPU: percentage, count, frequency (current/min/max)
-- Memory: total, available, used, percentage
-- Disk: total, used, free, percentage (root partition)
-- Network: bytes sent/received (aggregated)
-- System: hostname, platform, uptime
-- GPU: utilization percentage, temperature, total memory, used memory, name, driver version (NVIDIA only on Linux)
+The collector gathers the following system metrics:
+
+*   **CPU:**
+    *   CPU Usage Percentage
+    *   Number of CPU Cores
+    *   Current, Min, and Max CPU Frequencies (MHz)
+    *   **CPU Brand**
+    *   **CPU Vendor ID**
+*   **Memory:**
+    *   Total, Available, and Used Memory (bytes)
+    *   Memory Usage Percentage
+*   **Disk:**
+    *   Total, Used, and Free Disk Space (bytes)
+    *   Disk Usage Percentage
+*   **Network:**
+    *   Bytes Sent and Received (bytes)
+*   **System Information:**
+    *   Hostname
+    *   Platform (Operating System)
+    *   System Uptime (seconds)
+*   **GPU (if available):**
+    *   GPU Name
+    *   Driver Version
+    *   Total and Used GPU Memory
+    *   Temperature
+    *   Utilization
+
 
 ## GPU Metrics Collection
 

@@ -234,6 +234,8 @@ All endpoints may return the following error codes:
 - `cpu_percent`: CPU usage percentage (0-100)
 - `cpu_count`: Number of CPU cores
 - `cpu_freq_current`: Current CPU frequency in MHz
+- `cpu_brand`: CPU brand name
+- `cpu_vendor_id`: CPU vendor ID
 - `memory_total`: Total memory in bytes
 - `memory_available`: Available memory in bytes
 - `memory_used`: Used memory in bytes

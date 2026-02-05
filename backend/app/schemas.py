@@ -24,6 +24,8 @@ class SystemMetricsBase(BaseModel):
     cpu_freq_current: Optional[float] = Field(None, description="Current CPU frequency in MHz")
     cpu_freq_min: Optional[float] = Field(None, description="Minimum CPU frequency in MHz")
     cpu_freq_max: Optional[float] = Field(None, description="Maximum CPU frequency in MHz")
+    cpu_brand: Optional[str] = Field(None, description="CPU brand name")
+    cpu_vendor_id: Optional[str] = Field(None, description="CPU vendor ID")
     
     memory_total: int = Field(..., ge=0, description="Total memory in bytes")
     memory_available: int = Field(..., ge=0, description="Available memory in bytes")

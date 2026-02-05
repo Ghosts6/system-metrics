@@ -17,6 +17,8 @@ class SystemMetrics(Base):
     cpu_freq_current = Column(Float, nullable=True)  # MHz
     cpu_freq_min = Column(Float, nullable=True)
     cpu_freq_max = Column(Float, nullable=True)
+    cpu_brand = Column(String(255), nullable=True)
+    cpu_vendor_id = Column(String(50), nullable=True)
     
     # Memory metrics
     memory_total = Column(BigInteger, nullable=False)  # bytes

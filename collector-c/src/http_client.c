@@ -59,6 +59,8 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         "\"cpu_freq_current\":%.2f,"
         "\"cpu_freq_min\":%.2f,"
         "\"cpu_freq_max\":%.2f,"
+        "\"cpu_brand\":\"%s\","
+        "\"cpu_vendor_id\":\"%s\","
         "\"memory_total\":%llu,"
         "\"memory_available\":%llu,"
         "\"memory_used\":%llu,"
@@ -79,6 +81,8 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         metrics->cpu_freq_current,
         metrics->cpu_freq_min,
         metrics->cpu_freq_max,
+        metrics->cpu_brand,
+        metrics->cpu_vendor_id,
         (unsigned long long)metrics->memory_total,
         (unsigned long long)metrics->memory_available,
         (unsigned long long)metrics->memory_used,

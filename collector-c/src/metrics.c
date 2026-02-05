@@ -11,6 +11,7 @@
 #include <psapi.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <intrin.h>
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "psapi.lib")
@@ -113,6 +114,19 @@ int get_cpu_metrics(SystemMetrics *metrics) {
         int freq_count = 0;
         
         while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "model name", 10) == 0) {
+                char* value = strchr(line, ':');
+                if (value) {
+                    strncpy(metrics->cpu_brand, value + 2, sizeof(metrics->cpu_brand) - 1);
+                    metrics->cpu_brand[strcspn(metrics->cpu_brand, "\n")] = 0;
+                }
+            } else if (strncmp(line, "vendor_id", 9) == 0) {
+                char* value = strchr(line, ':');
+                if (value) {
+                    strncpy(metrics->cpu_vendor_id, value + 2, sizeof(metrics->cpu_vendor_id) - 1);
+                    metrics->cpu_vendor_id[strcspn(metrics->cpu_vendor_id, "\n")] = 0;
+                }
+            }
             if (strncmp(line, "cpu MHz", 7) == 0) {
                 double freq;
                 if (sscanf(line, "cpu MHz : %lf", &freq) == 1) {
@@ -232,6 +246,16 @@ int get_cpu_metrics(SystemMetrics *metrics) {
         return -1;
     }
     metrics->cpu_count = cpu_count;
+
+    size = sizeof(metrics->cpu_brand);
+    if (sysctlbyname("machdep.cpu.brand_string", metrics->cpu_brand, &size, NULL, 0) != 0) {
+        strncpy(metrics->cpu_brand, "unknown", sizeof(metrics->cpu_brand) - 1);
+    }
+
+    size = sizeof(metrics->cpu_vendor_id);
+    if (sysctlbyname("machdep.cpu.vendor", metrics->cpu_vendor_id, &size, NULL, 0) != 0) {
+        strncpy(metrics->cpu_vendor_id, "unknown", sizeof(metrics->cpu_vendor_id) - 1);
+    }
     
     host_cpu_load_info_data_t cpuinfo;
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
@@ -351,6 +375,25 @@ int get_cpu_metrics(SystemMetrics *metrics) {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
     metrics->cpu_count = sysInfo.dwNumberOfProcessors;
+
+    int cpuInfo[4] = {0};
+    __cpuid(cpuInfo, 0);
+    char vendor[13];
+    memcpy(vendor, &cpuInfo[1], 4);
+    memcpy(vendor + 4, &cpuInfo[3], 4);
+    memcpy(vendor + 8, &cpuInfo[2], 4);
+    vendor[12] = '\0';
+    strncpy(metrics->cpu_vendor_id, vendor, sizeof(metrics->cpu_vendor_id) - 1);
+
+    char brand[49] = {0};
+    for (int i = 0x80000002; i <= 0x80000004; ++i) {
+        __cpuid(cpuInfo, i);
+        memcpy(brand + (i - 0x80000002) * 16, cpuInfo, 16);
+    }
+    brand[48] = '\0';
+    strncpy(metrics->cpu_brand, brand, sizeof(metrics->cpu_brand) - 1);
+    
+    return 0;
     
     PDH_HQUERY query;
     PDH_HCOUNTER counter;

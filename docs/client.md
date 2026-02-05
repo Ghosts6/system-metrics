@@ -62,7 +62,7 @@ The System Metrics Client is a cross-platform Qt6 (C++) desktop application for 
 - **Comprehensive System Information**: Detailed breakdown of all system metrics
 - **Organized Sections**:
   - System Information (hostname, platform, timestamp)
-  - CPU Information (cores, usage, frequencies)
+  - CPU Information (cores, usage, frequencies, brand, and vendor ID)
   - GPU Information (name, driver, utilization, temperature, memory is provided for each detected GPU)
   - Memory Information (total, used, available, percentage)
   - Disk Information (total, used, free, percentage)

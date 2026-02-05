@@ -104,6 +104,12 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
     if (metrics.contains("cpu_count")) {
         rows.append(InfoRow{"CPU Cores", QString::number(metrics["cpu_count"].toInt())});
     }
+    if (metrics.contains("cpu_brand")) {
+        rows.append(InfoRow{"CPU Brand", metrics["cpu_brand"].toString()});
+    }
+    if (metrics.contains("cpu_vendor_id")) {
+        rows.append(InfoRow{"CPU Vendor ID", metrics["cpu_vendor_id"].toString()});
+    }
     if (metrics.contains("cpu_percent")) {
         rows.append(InfoRow{"CPU Usage", QString("%1%").arg(metrics["cpu_percent"].toDouble(), 0, 'f', 2)});
     }
@@ -187,6 +193,16 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
         rows.append(InfoRow{"Bytes Received", formatBytes(recv)});
     }
 
+    // Define section headers
+    QSet<QString> sectionHeaders = {
+        "System Information",
+        "CPU Information",
+        "GPU Information",
+        "Memory Information",
+        "Disk Information",
+        "Network Information"
+    };
+
     // Populate table
     m_infoTable->setRowCount(rows.size());
     
@@ -197,9 +213,13 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
         QTableWidgetItem *valueItem = new QTableWidgetItem(row.value);
         
         // Style section headers
-        if (row.value.isEmpty() && !row.property.isEmpty()) {
+        if (sectionHeaders.contains(row.property)) {
+            QFont headerFont = propertyItem->font();
+            headerFont.setBold(true);
+            headerFont.setPointSize(headerFont.pointSize() + 1);
+            
+            propertyItem->setFont(headerFont);
             propertyItem->setForeground(QBrush(QColor(20, 160, 133))); // #14a085
-            propertyItem->setFont(QFont("", -1, QFont::Bold));
             valueItem->setText("");
         } else if (row.property.isEmpty() && row.value.isEmpty()) {
             // Separator row

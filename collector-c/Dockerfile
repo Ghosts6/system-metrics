@@ -1,5 +1,5 @@
 # Stage 1: Build the collector
-FROM gcc:12.3 as builder
+FROM gcc:12.3 AS builder
 
 WORKDIR /app
 

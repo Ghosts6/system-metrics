@@ -26,6 +26,8 @@ typedef struct {
     double cpu_freq_current;
     double cpu_freq_min;
     double cpu_freq_max;
+    char cpu_brand[256];
+    char cpu_vendor_id[128];
     
     uint64_t memory_total;
     uint64_t memory_available;
