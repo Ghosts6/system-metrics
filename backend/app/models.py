@@ -50,6 +50,44 @@ class SystemMetrics(Base):
         Index('idx_timestamp', 'timestamp'),
     )
 
+    def to_dict(self):
+        """Convert the model instance to a dictionary."""
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat(),
+            "cpu_percent": self.cpu_percent,
+            "cpu_count": self.cpu_count,
+            "cpu_freq_current": self.cpu_freq_current,
+            "cpu_freq_min": self.cpu_freq_min,
+            "cpu_freq_max": self.cpu_freq_max,
+            "cpu_brand": self.cpu_brand,
+            "cpu_vendor_id": self.cpu_vendor_id,
+            "memory_total": self.memory_total,
+            "memory_available": self.memory_available,
+            "memory_used": self.memory_used,
+            "memory_percent": self.memory_percent,
+            "disk_total": self.disk_total,
+            "disk_used": self.disk_used,
+            "disk_free": self.disk_free,
+            "disk_percent": self.disk_percent,
+            "network_bytes_sent": self.network_bytes_sent,
+            "network_bytes_recv": self.network_bytes_recv,
+            "hostname": self.hostname,
+            "platform": self.platform,
+            "uptime_seconds": self.uptime_seconds,
+            "gpu_count": self.gpu_count,
+            "gpus": [
+                {
+                    "name": gpu.name,
+                    "driver_version": gpu.driver_version,
+                    "memory_total": gpu.memory_total,
+                    "memory_used": gpu.memory_used,
+                    "temperature": gpu.temperature,
+                    "utilization": gpu.utilization,
+                }
+                for gpu in self.gpus
+            ],
+        }
 
 class GpuMetrics(Base):
     """Model for storing GPU metrics."""

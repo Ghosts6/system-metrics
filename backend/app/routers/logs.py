@@ -1,16 +1,18 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
+from loguru import logger
 from app.database import get_db
 from app.schemas import SystemLogCreate, SystemLogResponse, SystemLogListResponse
 from app.models import SystemLog
+from app.exceptions import DatabaseError, LogNotFoundError
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
 
-@router.post("/", response_model=SystemLogResponse, status_code=201)
+@router.post("/", response_model=SystemLogResponse, status_code=status.HTTP_201_CREATED)
 def create_log(log: SystemLogCreate, db: Session = Depends(get_db)):
     """
     Create a new system log entry.
@@ -20,10 +22,12 @@ def create_log(log: SystemLogCreate, db: Session = Depends(get_db)):
         db.add(db_log)
         db.commit()
         db.refresh(db_log)
+        logger.info(f"Created new log with ID: {db_log.id}")
         return db_log
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create log: {str(e)}")
+        logger.error(f"Failed to create log: {e}", exc_info=True)
+        raise DatabaseError(detail=f"Failed to create log: {str(e)}")
 
 
 @router.get("/", response_model=SystemLogListResponse)
@@ -68,6 +72,8 @@ def get_logs(
         
         pages = (total + page_size - 1) // page_size if total > 0 else 0
         
+        logger.debug(f"Retrieved {len(logs)} logs for page {page} of {pages} total pages.")
+        
         return SystemLogListResponse(
             items=logs,
             total=total,
@@ -76,7 +82,8 @@ def get_logs(
             pages=pages
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve logs: {str(e)}")
+        logger.error(f"Failed to retrieve logs: {e}", exc_info=True)
+        raise DatabaseError(detail=f"Failed to retrieve logs: {str(e)}")
 
 
 @router.get("/{log_id}", response_model=SystemLogResponse)
@@ -86,5 +93,7 @@ def get_log(log_id: int, db: Session = Depends(get_db)):
     """
     log = db.query(SystemLog).filter(SystemLog.id == log_id).first()
     if not log:
-        raise HTTPException(status_code=404, detail="Log not found")
+        logger.warning(f"Log with ID {log_id} not found.")
+        raise LogNotFoundError(detail=f"Log entry with ID {log_id} not found")
+    logger.debug(f"Retrieved log with ID: {log_id}")
     return log

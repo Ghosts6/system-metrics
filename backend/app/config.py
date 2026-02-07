@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     redis_host: str = os.getenv("REDIS_HOST", "localhost")
     redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
     redis_db: int = int(os.getenv("REDIS_DB", "0"))
+    cache_ttl: int = int(os.getenv("CACHE_TTL", "60")) # seconds
     
     # Application settings
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")

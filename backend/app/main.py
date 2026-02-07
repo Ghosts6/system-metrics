@@ -1,10 +1,19 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+from sqlalchemy.orm import Session
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
 from app.routers import metrics, logs
 from app.services.cache_service import cache_service
+from app.logging_config import setup_logging
+from app.exceptions import APIError
+from app.models import SystemMetrics
+
+# Setup logging
+setup_logging(settings)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -12,12 +21,26 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Application startup")
     if cache_service.is_connected():
-        print("✓ Redis connection established")
+        logger.info("✓ Redis connection established")
+        # Cache warming
+        db: Session = SessionLocal()
+        try:
+            latest_metrics = db.query(SystemMetrics).order_by(SystemMetrics.timestamp.desc()).first()
+            if latest_metrics:
+                cache_service.set_latest_metrics(latest_metrics.to_dict())
+                logger.info("Cache warmed with latest metrics.")
+            else:
+                logger.info("No metrics found to warm the cache.")
+        except Exception as e:
+            logger.error(f"Failed to warm cache: {e}", exc_info=True)
+        finally:
+            db.close()
     else:
-        print("⚠ Redis connection unavailable (continuing without cache)")
+        logger.warning("⚠ Redis connection unavailable (continuING without cache)")
     yield
-    pass
+    logger.info("Application shutdown")
 
 
 # Initialize FastAPI app
@@ -38,6 +61,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exception handler for custom APIError
+@app.exception_handler(APIError)
+async def api_error_handler(request: Request, exc: APIError):
+    logger.error(f"API Error caught: {exc.detail}", exc_info=True)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
 
 # Include routers
 app.include_router(metrics.router, prefix=settings.api_v1_prefix)

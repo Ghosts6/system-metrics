@@ -47,6 +47,8 @@ services:
       dockerfile: backend/Dockerfile.dev
     env_file:
       - ./docker.env
+    volumes:
+      - ./backend:/app
     depends_on:
       - db
 

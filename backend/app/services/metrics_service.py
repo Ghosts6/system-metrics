@@ -6,7 +6,8 @@ import subprocess
 import os
 from datetime import datetime
 from typing import Dict, Any, Optional
-from app.schemas import SystemMetricsCreate
+from loguru import logger
+from app.schemas import SystemMetricsCreate, GpuMetricsBase
 from app.models import SystemMetrics
 from app.services.cache_service import cache_service
 from app.config import settings
@@ -19,6 +20,7 @@ class MetricsService:
     @staticmethod
     def _collect_with_psutil() -> SystemMetricsCreate:
         """Collect metrics using psutil (Python)."""
+        logger.info("Collecting metrics with psutil.")
         # CPU metrics
         cpu_percent = psutil.cpu_percent(interval=0.1)
         cpu_count = psutil.cpu_count()
@@ -78,6 +80,7 @@ class MetricsService:
     @staticmethod
     def _collect_with_c_collector() -> Optional[SystemMetricsCreate]:
         """Collect metrics using C collector binary."""
+        logger.info("Attempting to collect metrics with C collector.")
         collector_path = settings.c_collector_path
         
         if not collector_path:
@@ -93,7 +96,10 @@ class MetricsService:
                     break
         
         if not collector_path or not os.path.isfile(collector_path):
+            logger.warning("C collector binary not found or not executable.")
             return None
+            
+        logger.debug(f"Using C collector at: {collector_path}")
         
         try:
             result = subprocess.run(
@@ -141,7 +147,14 @@ class MetricsService:
                 gpu_count=int(metrics_json.get("gpu_count", 0)),
                 gpus=gpu_metrics_list
             )
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, json.JSONDecodeError, KeyError, ValueError) as e:
+        except subprocess.TimeoutExpired:
+            logger.error("C collector timed out.", exc_info=True)
+            return None
+        except subprocess.CalledProcessError as e:
+            logger.error(f"C collector failed with exit code {e.returncode}: {e.stderr}", exc_info=True)
+            return None
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.error(f"Failed to parse C collector output: {e}", exc_info=True)
             return None
     
     @staticmethod
@@ -150,59 +163,13 @@ class MetricsService:
         if settings.metrics_collector == "c-collector":
             metrics = MetricsService._collect_with_c_collector()
             if metrics:
+                logger.info("Successfully collected metrics with C collector.")
                 return metrics
             else:
-                # Fallback to psutil if C collector fails
+                logger.warning("C collector failed. Falling back to psutil.")
                 return MetricsService._collect_with_psutil()
         else:
-            # Default to psutil
             return MetricsService._collect_with_psutil()
-    
-    @staticmethod
-    def save_metrics(db: Session, metrics: SystemMetricsCreate) -> SystemMetrics:
-        """Save metrics to database."""
-        db_metrics = SystemMetrics(**metrics.model_dump())
-        db.add(db_metrics)
-        db.commit()
-        db.refresh(db_metrics)
-        return db_metrics
-    
-    @staticmethod
-    def cache_latest_metrics(metrics: SystemMetricsCreate) -> bool:
-        """Cache latest metrics in Redis."""
-        metrics_dict = metrics.model_dump()
-        metrics_dict['timestamp'] = datetime.utcnow().isoformat()
-        return cache_service.set_latest_metrics(metrics_dict)
-    
-    @staticmethod
-    def get_latest_metrics() -> Optional[Dict[str, Any]]:
-        """Get latest metrics from cache."""
-        return cache_service.get_latest_metrics()
-    
-    @staticmethod
-    def get_metrics_history(
-        db: Session,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        page: int = 1,
-        page_size: int = 100
-    ) -> tuple[list[SystemMetrics], int]:
-        """Get historical metrics with pagination."""
-        query = db.query(SystemMetrics)
-        
-        if start_time:
-            query = query.filter(SystemMetrics.timestamp >= start_time)
-        if end_time:
-            query = query.filter(SystemMetrics.timestamp <= end_time)
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * page_size
-        metrics = query.order_by(SystemMetrics.timestamp.desc()).offset(offset).limit(page_size).all()
-        
-        return metrics, total
 
 
 # Singleton instance

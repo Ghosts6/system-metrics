@@ -213,19 +213,43 @@ Get a specific log entry by ID.
 
 ## Error Responses
 
-All endpoints may return the following error codes:
+All endpoints may return custom API errors, which are subclasses of `APIError`. These errors provide more specific `detail` messages than generic HTTP exceptions.
 
-- `400 Bad Request`: Invalid request parameters
-- `404 Not Found`: Resource not found
-- `422 Unprocessable Entity`: Validation error
-- `500 Internal Server Error`: Server error
+- `400 Bad Request`: Invalid request parameters (e.g., malformed input).
+- `404 Not Found`: Resource not found (e.g., `MetricsNotFoundError`, `LogNotFoundError`).
+- `422 Unprocessable Entity`: Validation error (e.g., Pydantic validation failures).
+- `500 Internal Server Error`: Server-side errors (e.g., `DatabaseError`, `CacheError`, `CollectorError`).
 
 **Error Response Format:**
 ```json
 {
-  "detail": "Error message description"
+  "detail": "Descriptive error message from APIError or its subclasses"
 }
 ```
+
+## Logging
+
+The backend implements structured logging using `loguru`. Logs are output to `stdout` (with colorization) for development and to a file named `logs/app.log` in JSON format for production environments.
+
+**Log Levels:**
+- `INFO`: General application flow, important events.
+- `DEBUG`: Detailed information for debugging.
+- `WARNING`: Non-critical issues or unexpected events.
+- `ERROR`: Critical errors, exceptions, and failures.
+
+## Caching Strategy
+
+The backend utilizes Redis for efficient caching of live system metrics.
+
+- **Live Metrics:** The `/api/v1/metrics/live` endpoint first attempts to retrieve the latest metrics from Redis. If available, it serves the cached data for fast responses.
+- **Cache Warming:** On application startup, a cache-warming mechanism queries the database for the most recent system metrics and populates the Redis cache. This ensures that live data is available immediately after the service starts.
+- **Cache Invalidation:** The cache is updated with the latest metrics each time new metrics are collected via the `/api/v1/metrics/collect` endpoint.
+
+## Configuration
+
+The backend service is configurable primarily through environment variables. This allows for flexible deployment across different environments (development, testing, production).
+
+For a comprehensive list of all available environment variables and their descriptions, please refer to the **[Configuration section in the main README.md](../README.md#Configuration)**.
 
 ## Data Models
 

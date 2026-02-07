@@ -1,6 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
-# from app.services.metrics_service import metrics_service # Removed as it's not used directly here
+from datetime import datetime, timedelta
+import json
+from unittest.mock import patch, MagicMock
+from app.exceptions import DatabaseError, CacheError, MetricsNotFoundError, LogNotFoundError, APIError
+from sqlalchemy.orm import Session
+import redis
 
 
 @pytest.fixture(scope="function")
@@ -93,6 +98,11 @@ def test_metrics_live_endpoint(seeded_client: TestClient):
         assert isinstance(gpu["utilization"], (int, float))
         assert 0 <= gpu["utilization"] <= 100
 
+def test_metrics_live_endpoint_no_metrics(client: TestClient):
+    """Test live metrics endpoint when no metrics are available."""
+    response = client.get("/api/v1/metrics/live")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No metrics found"
 
 def test_metrics_collect_endpoint(client: TestClient):
     """Test metrics collection endpoint."""
@@ -167,6 +177,43 @@ def test_metrics_collect_endpoint_invalid_input(client: TestClient, invalid_payl
         for err in details
     ), f"Expected error not found in details: {details}"
 
+def get_test_metrics_data_edge_cases():
+    """Helper to generate SystemMetricsCreate data for various edge cases."""
+    base_data = {
+        "cpu_percent": 50.0, "cpu_count": 4, "memory_total": 8589934592,
+        "memory_available": 4294967296, "memory_used": 4294967296, "memory_percent": 50.0,
+        "disk_total": 536870912000, "disk_used": 268435456000, "disk_free": 268435456000, "disk_percent": 50.0,
+        "hostname": "edge-host", "platform": "Linux", "uptime_seconds": 1000.0,
+    }
+
+    return [
+        # Minimum valid values for core metrics
+        {**base_data, "cpu_percent": 0.0, "cpu_count": 1, "memory_total": 0, "memory_available": 0, "memory_used": 0, "memory_percent": 0.0,
+         "disk_total": 0, "disk_used": 0, "disk_free": 0, "disk_percent": 0.0},
+        # Maximum valid values for percentages
+        {**base_data, "cpu_percent": 100.0, "memory_percent": 100.0, "disk_percent": 100.0,
+         "gpus": [{"name": "GPU", "driver_version": "1.0", "memory_total": 1, "memory_used": 1, "temperature": 0.0, "utilization": 100.0}]},
+        # Zero GPU count, no gpus list
+        {**base_data, "gpu_count": 0, "gpus": []},
+        # Maximum integer values for memory/disk (using smaller numbers for test brevity)
+        {**base_data, "memory_total": 2**31 - 1, "memory_available": 2**31 - 1, "memory_used": 0, "disk_total": 2**31 - 1, "disk_used": 0, "disk_free": 2**31 - 1},
+        # All optional fields missing
+        {"cpu_percent": 10.0, "cpu_count": 2, "memory_total": 1000, "memory_available": 500, "memory_used": 500, "memory_percent": 50.0,
+         "disk_total": 2000, "disk_used": 1000, "disk_free": 1000, "disk_percent": 50.0},
+    ]
+
+
+@pytest.mark.parametrize("metrics_payload", get_test_metrics_data_edge_cases())
+def test_metrics_collect_endpoint_valid_edge_cases(client: TestClient, metrics_payload: dict):
+    """Test metrics collection endpoint with various valid edge-case data."""
+    response = client.post("/api/v1/metrics/collect", json=metrics_payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert "id" in data
+    assert "timestamp" in data
+    # Basic verification of some fields
+    assert data["cpu_percent"] == metrics_payload["cpu_percent"]
+    assert data["memory_total"] == metrics_payload["memory_total"]
 
 @pytest.mark.parametrize("invalid_payload, expected_loc, expected_msg", [
     # Missing required field: message
@@ -185,6 +232,52 @@ def test_logs_create_endpoint_invalid_input(client: TestClient, invalid_payload:
         for err in details
     ), f"Expected error not found in details: {details}"
 
+
+@pytest.mark.parametrize("log_message, log_metadata_str", [
+    # Very long message
+    ("a" * 1000, None),
+    # Message with special characters
+    (r"!@#$%^&*()_+{}[]|\:;'<>,.?/~`", None),
+    # Complex JSON metadata
+    ("Log with complex metadata", json.dumps({"user": "test_user", "action": "login", "details": {"id": 123, "status": "success"}})),
+])
+def test_logs_create_endpoint_edge_cases(client: TestClient, log_message: str, log_metadata_str: str):
+    """Test log creation endpoint with various valid edge-case data."""
+    log_data = {
+        "level": "INFO",
+        "message": log_message,
+        "source": "edge_case_test",
+    }
+    if log_metadata_str:
+        log_data["log_metadata"] = log_metadata_str
+
+    response = client.post("/api/v1/logs/", json=log_data)
+    
+    if log_message == "": # Pydantic will actually catch this with "String should have at least 1 character"
+        assert response.status_code == 422
+        details = response.json()["detail"]
+        assert any(
+            err.get("loc") == ["body", "message"] and "String should have at least 1 character" in err.get("msg")
+            for err in details
+        ), f"Expected error for empty message not found in details: {details}"
+    else:
+        assert response.status_code == 201
+        data = response.json()
+        assert "id" in data
+        assert data["message"] == log_message
+        if log_metadata_str:
+            assert data["log_metadata"] == log_metadata_str
+
+def test_logs_create_db_error(client: TestClient, db_session: Session):
+    """Test log creation endpoint with a simulated database error."""
+    log_data = {
+        "level": "ERROR",
+        "message": "Simulated DB error log"
+    }
+    with patch.object(db_session, 'add', side_effect=Exception("Database write error")):
+        response = client.post("/api/v1/logs/", json=log_data)
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to create log: Database write error"
 
 def test_metrics_history_endpoint(seeded_client: TestClient):
     """Test metrics history endpoint."""
@@ -340,6 +433,7 @@ def test_logs_get_nonexistent_id(seeded_client: TestClient):
     """Test getting a non-existent log ID."""
     response = seeded_client.get("/api/v1/logs/99999")
     assert response.status_code == 404
+    assert response.json()["detail"] == "Log entry with ID 99999 not found"
 
 
 def test_metrics_health_endpoint(client: TestClient):
@@ -361,3 +455,38 @@ def test_api_error_handling(client: TestClient):
     # Test invalid method
     response = client.get("/api/v1/metrics/collect")  # Should be POST
     assert response.status_code == 405  # Method not allowed
+
+def test_metrics_collect_db_error(client: TestClient, db_session: Session):
+    """Test metrics collection endpoint with a simulated database error."""
+    metrics_data = get_test_metrics_data()
+    with patch.object(db_session, 'add', side_effect=Exception("Database write error")):
+        response = client.post("/api/v1/metrics/collect", json=metrics_data)
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to collect and save metrics: Database write error"
+
+def test_metrics_history_db_error(client: TestClient, db_session: Session):
+    """Test metrics history endpoint with a simulated database error."""
+    with patch.object(db_session, 'query', side_effect=Exception("Database read error")):
+        response = client.get("/api/v1/metrics/history")
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to retrieve metrics history: Database read error"
+
+def test_metrics_live_cache_error(client):
+    metrics_data = get_test_metrics_data()
+    client.post("/api/v1/metrics/collect", json=metrics_data)
+
+    with patch(
+        "app.services.cache_service.cache_service.get_latest_metrics",
+        side_effect=CacheError(detail="Failed to get latest metrics from cache"),
+    ):
+        response = client.get("/api/v1/metrics/live")
+
+    assert response.status_code == 500
+    assert "Failed to get latest metrics from cache" in response.json()["detail"]
+
+def test_metrics_health_redis_unavailable(client: TestClient):
+    """Test metrics health endpoint when Redis is unavailable."""
+    with patch('app.services.cache_service.cache_service.is_connected', return_value=False):
+        response = client.get("/api/v1/metrics/health")
+        assert response.status_code == 200
+        assert response.json()["redis"] == "unavailable"

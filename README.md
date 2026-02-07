@@ -70,6 +70,26 @@ make
 - [C Collector](docs/collector.md) - C metrics collector and backend integration
 - [Qt Client](docs/client.md) - Client dependencies and usage
 
+## Configuration
+
+The backend service can be configured using the following environment variables. These should typically be set in a `.env` file in the `backend/` directory or as Docker environment variables.
+
+| Environment Variable          | Default Value                     | Description                                            |
+| :---------------------------- | :-------------------------------- | :----------------------------------------------------- |
+| `POSTGRES_DB`                 | `system_metrics`                  | PostgreSQL database name (used internally by Docker).  |
+| `POSTGRES_USER`               | `user`                            | PostgreSQL database user (used internally by Docker).  |
+| `POSTGRES_PASSWORD`           | `password`                        | PostgreSQL database password (used internally by Docker).|
+| `DATABASE_URL`                | `postgresql://user:password@db:5432/system_metrics` | SQLAlchemy database connection URL. **Important: For production, this should be a strong, unique password and user.** |
+| `REDIS_HOST`                  | `redis`                           | Hostname for the Redis server.                         |
+| `REDIS_PORT`                  | `6379`                            | Port for the Redis server.                             |
+| `REDIS_DB`                    | `0`                               | Redis database number.                                 |
+| `CACHE_TTL`                   | `60`                              | Time-to-live (in seconds) for cached metrics.          |
+| `SECRET_KEY`                  | `dev-secret-key-change-in-production` | Secret key for application security. **Change in production to a strong, random value.** |
+| `METRICS_COLLECTION_INTERVAL` | `5`                               | Interval (in seconds) for metrics collection.          |
+| `METRICS_RETENTION_DAYS`      | `30`                              | Number of days to retain historical metrics.           |
+| `METRICS_COLLECTOR`           | `psutil`                          | Metrics collection method (`psutil` or `c-collector`). |
+| `C_COLLECTOR_PATH`            | `None`                            | Absolute path to the C collector binary (if used).     |
+
 ## Project Structure
 
 ```

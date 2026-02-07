@@ -1,8 +1,9 @@
 import os
 import pytest
+import logging
+import sys
+from loguru import logger
 
-# Set environment variables BEFORE importing app modules
-# Use SQLite for testing to avoid PostgreSQL dependency issues
 os.environ["DATABASE_URL"] = "sqlite:///./test_system_metrics.db"
 os.environ["REDIS_HOST"] = "localhost"
 os.environ["REDIS_PORT"] = "6379"
@@ -12,6 +13,25 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.database import Base, get_db
 from app.main import app
+
+@pytest.fixture(scope="function", autouse=True) 
+def configure_loguru_for_pytest(caplog: pytest.LogCaptureFixture): 
+    """
+    Configures loguru to send logs to pytest's caplog fixture.
+    """
+    logger.remove()
+
+    # Add a handler that sends messages directly to caplog's handler
+    logger.add(caplog.handler, format="{message}", level="DEBUG", filter=None)
+    
+    # Set the level for caplog's own handler to DEBUG to ensure it captures everything
+    caplog.set_level(logging.DEBUG)
+
+    yield
+
+    # Restore loguru to its default behavior after tests
+    logger.remove()
+    logger.add(sys.stderr) 
 
 
 @pytest.fixture(scope="function")
