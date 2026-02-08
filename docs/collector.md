@@ -10,6 +10,10 @@ Low-level C agent for collecting system metrics and sending them to the backend 
 - JSON output mode for piping/scripting
 - Configurable collection interval
 - Integration with FastAPI backend
+- Robust Error Handling and Logging
+- Dynamic JSON Buffer
+- Daemonization for background operation
+- Configuration File support
 
 ## Building
 
@@ -61,6 +65,16 @@ Installs to `/usr/local/bin/collector`.
 
 ## Usage
 
+### Command-Line Options
+
+- `-u, --url URL`: API base URL (default: `http://localhost:8000`).
+- `-i, --interval SEC`: Collection interval in seconds (default: `5`).
+- `-l, --logfile FILE`: Path to log file (default: `stderr`).
+- `-c, --config FILE`: Path to configuration file (default: `/etc/system-metrics/collector.conf`).
+- `-d, --daemon`: Run as a background daemon (Linux/macOS only).
+- `-o, --output`: Output JSON to stdout instead of sending to API.
+- `-h, --help`: Show this help message.
+
 ### Standalone Mode - Send metrics to API
 
 Run the collector as a standalone process that sends metrics via HTTP:
@@ -68,9 +82,6 @@ Run the collector as a standalone process that sends metrics via HTTP:
 ```bash
 ./collector -u http://localhost:8000 -i 5
 ```
-
-- `-u, --url`: API base URL (default: http://localhost:8000)
-- `-i, --interval`: Collection interval in seconds (default: 5)
 
 ### Output JSON to stdout
 
@@ -91,6 +102,28 @@ Useful for piping to other tools, testing, or backend integration.
 
 # Pipe JSON to a file
 ./collector --output > metrics.json
+
+# Run as a daemon with logging to a file
+./collector -d -l /var/log/collector.log -u http://localhost:8000 -i 15
+
+# Use a custom configuration file
+./collector -c /path/to/my_collector.conf
+```
+
+### Configuration File (`collector.conf`)
+
+The collector can read its settings from an INI-style configuration file.
+By default, it looks for `/etc/system-metrics/collector.conf`, but a custom path can be specified with `-c` or `--config`.
+Command-line arguments always override settings from the configuration file.
+
+Example `collector.conf`:
+```ini
+# API settings
+api_url = http://localhost:8000
+interval = 10
+
+# Logging settings
+logfile = /var/log/system-metrics-collector.log
 ```
 
 ### Collected Metrics
@@ -125,7 +158,7 @@ The collector gathers the following system metrics:
 
 ## GPU Metrics Collection
 
-Currently, the C collector supports NVIDIA GPUs on Linux platforms. It leverages the `nvidia-smi` command-line utility to gather detailed GPU metrics including utilization, temperature, memory usage, GPU name, and driver version.
+Currently, the C collector supports NVIDIA GPUs on Linux platforms. It leverages the `nvidia-smi` command-line utility to gather detailed GPU metrics including utilization, temperature, memory usage, GPU name, and driver version. Support for AMD and Intel GPUs on Linux is also included.
 
 ### Host Prerequisites for GPU Collection
 
@@ -135,7 +168,6 @@ For the collector container to access host GPU resources and `nvidia-smi`, the h
 
 Future plans include expanding GPU metrics collection to:
 
--   **Other Linux GPUs**: Implement support for AMD (`rocm-smi`) and Intel GPUs.
 -   **Windows**: Integrate with Windows-specific APIs or vendor-provided tools for NVIDIA, AMD, and Intel GPUs.
 -   **macOS**: Utilize macOS-specific frameworks for GPU monitoring.
 
@@ -261,7 +293,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/collector -u http://localhost:8000 -i 5
+ExecStart=/usr/local/bin/collector -u http://localhost:8000 -i 5 --daemon --logfile /var/log/system-metrics-collector.log
 Restart=always
 RestartSec=10
 

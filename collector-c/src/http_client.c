@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <curl/curl.h>
+#include "logger.h"
 
 struct ResponseBuffer {
     char *data;
@@ -14,7 +15,10 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     struct ResponseBuffer *mem = (struct ResponseBuffer *)userp;
     
     char *ptr = realloc(mem->data, mem->size + realsize + 1);
-    if (!ptr) return 0;
+    if (!ptr) {
+        log_message(LOG_LEVEL_ERROR, "Failed to reallocate memory for response buffer");
+        return 0;
+    }
     
     mem->data = ptr;
     memcpy(&(mem->data[mem->size]), contents, realsize);
@@ -24,7 +28,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return realsize;
 }
 
-int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffer_size) {
+char* format_metrics_json(const SystemMetrics *metrics) {
     char gpu_buffer[2048] = {0};
     if (metrics->gpu_count > 0) {
         strcat(gpu_buffer, ",\"gpus\":[");
@@ -50,6 +54,13 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
             strcat(gpu_buffer, temp_buffer);
         }
         strcat(gpu_buffer, "]");
+    }
+
+    size_t buffer_size = 4096;
+    char *buffer = malloc(buffer_size);
+    if (!buffer) {
+        log_message(LOG_LEVEL_ERROR, "Failed to allocate memory for JSON buffer");
+        return NULL;
     }
 
     int written = snprintf(buffer, buffer_size,
@@ -100,18 +111,26 @@ int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffe
         gpu_buffer
     );
     
-    return (written > 0 && written < (int)buffer_size) ? 0 : -1;
+    if (written < 0 || (size_t)written >= buffer_size) {
+        log_message(LOG_LEVEL_ERROR, "Failed to format metrics JSON: buffer too small");
+        free(buffer);
+        return NULL;
+    }
+    
+    return buffer;
 }
 
 int send_metrics_to_api(const char *api_url, const SystemMetrics *metrics) {
     CURL *curl;
     CURLcode res;
     struct ResponseBuffer response = {0};
-    char json_buffer[4096];
+    char *json_buffer = NULL;
     char url[512];
+    char log_buffer[1024];
     
-    if (format_metrics_json(metrics, json_buffer, sizeof(json_buffer)) != 0) {
-        fprintf(stderr, "Error: Failed to format JSON\n");
+    json_buffer = format_metrics_json(metrics);
+    if (!json_buffer) {
+        // Error is already logged in format_metrics_json
         return -1;
     }
     
@@ -119,9 +138,13 @@ int send_metrics_to_api(const char *api_url, const SystemMetrics *metrics) {
     
     curl = curl_easy_init();
     if (!curl) {
-        fprintf(stderr, "Error: Failed to initialize CURL\n");
+        log_message(LOG_LEVEL_ERROR, "Failed to initialize CURL");
+        free(json_buffer);
         return -1;
     }
+    
+    response.data = malloc(1);
+    response.size = 0;
     
     struct curl_slist *headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
@@ -139,27 +162,30 @@ int send_metrics_to_api(const char *api_url, const SystemMetrics *metrics) {
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
     
     if (res != CURLE_OK) {
-        fprintf(stderr, "Error: curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+        snprintf(log_buffer, sizeof(log_buffer), "curl_easy_perform() failed: %s", curl_easy_strerror(res));
+        log_message(LOG_LEVEL_ERROR, log_buffer);
         curl_easy_cleanup(curl);
         curl_slist_free_all(headers);
         free(response.data);
+        free(json_buffer);
         return -1;
     }
     
     if (response_code != 201) {
-        fprintf(stderr, "Error: API returned status code %ld\n", response_code);
-        if (response.data) {
-            fprintf(stderr, "Response: %s\n", response.data);
-        }
+        snprintf(log_buffer, sizeof(log_buffer), "API returned status code %ld. Response: %s", 
+                 response_code, response.data ? response.data : "No response data");
+        log_message(LOG_LEVEL_ERROR, log_buffer);
         curl_easy_cleanup(curl);
         curl_slist_free_all(headers);
         free(response.data);
+        free(json_buffer);
         return -1;
     }
     
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
     free(response.data);
+    free(json_buffer);
     
     return 0;
 }

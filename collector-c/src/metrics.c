@@ -654,7 +654,7 @@ int get_amd_gpu_metrics(SystemMetrics *metrics) {
     while (current_line != NULL && i < 4) {
         GpuMetrics* gpu = &metrics->gpus[i];
         
-        char* token = strtok(current_line, ",");
+        strtok(current_line, ","); // Consume the first token which is the GPU index
         
         char* gpu_id = strtok(NULL, ",");
         char* driver_version = strtok(NULL, ",");

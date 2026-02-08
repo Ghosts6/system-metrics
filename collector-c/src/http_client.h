@@ -5,6 +5,6 @@
 #include "metrics.h"
 
 int send_metrics_to_api(const char *api_url, const SystemMetrics *metrics);
-int format_metrics_json(const SystemMetrics *metrics, char *buffer, size_t buffer_size);
+char* format_metrics_json(const SystemMetrics *metrics);
 
 #endif

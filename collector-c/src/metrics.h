@@ -13,7 +13,7 @@ typedef enum {
 
 typedef struct {
     char name[256];
-    char driver_version[64];
+    char driver_version[256];
     uint64_t memory_total;
     uint64_t memory_used;
     double temperature;
@@ -57,9 +57,5 @@ int get_disk_metrics(SystemMetrics *metrics);
 int get_network_metrics(SystemMetrics *metrics);
 int get_system_info(SystemMetrics *metrics);
 int get_gpu_metrics(SystemMetrics *metrics);
-
-#ifdef __linux__
-static char* get_command_output(const char* cmd);
-#endif
 
 #endif
