@@ -32,6 +32,7 @@ sudo apt-get install build-essential libcurl4-openssl-dev
 ```bash
 brew install curl
 ```
+**Note:** For optimal system metric collection on macOS, it is recommended to run the C collector natively on your host machine rather than within a Docker container, as containers on macOS provide metrics for the Docker VM, not the host OS.
 
 **Windows:**
 - Install MinGW-w64 or Visual Studio
@@ -74,6 +75,26 @@ Installs to `/usr/local/bin/collector`.
 - `-d, --daemon`: Run as a background daemon (Linux/macOS only).
 - `-o, --output`: Output JSON to stdout instead of sending to API.
 - `-h, --help`: Show this help message.
+
+### macOS Native Execution
+
+For macOS, an automated script `run-native.sh` is provided in the `collector-c` directory to simplify building and running the collector directly on the host. This ensures accurate host-level metric collection.
+
+**Usage:**
+```bash
+./collector-c/run-native.sh [collector arguments]
+```
+**Examples:**
+```bash
+# Run with default settings
+./collector-c/run-native.sh
+
+# Send metrics to a specific URL every 10 seconds
+./collector-c/run-native.sh -u http://localhost:8000 -i 10
+
+# Run as a daemon with logging
+./collector-c/run-native.sh -d -l /var/log/collector.log
+```
 
 ### Standalone Mode - Send metrics to API
 
@@ -144,6 +165,7 @@ The collector gathers the following system metrics:
     *   Disk Usage Percentage
 *   **Network:**
     *   Bytes Sent and Received (bytes)
+    *   **Note:** Network metrics are temporarily disabled on macOS due to ongoing development and compatibility issues.
 *   **System Information:**
     *   Hostname
     *   Platform (Operating System)
@@ -164,12 +186,14 @@ Currently, the C collector supports NVIDIA GPUs on Linux platforms. It leverages
 
 For the collector container to access host GPU resources and `nvidia-smi`, the host system must have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed and configured for Docker. This enables GPU passthrough to Docker containers.
 
-### Future Enhancements for GPU Support
+### GPU Metrics Support
+
+The C collector now includes basic GPU metrics collection for macOS using `system_profiler`. This covers essential information like GPU name and VRAM.
 
 Future plans include expanding GPU metrics collection to:
 
 -   **Windows**: Integrate with Windows-specific APIs or vendor-provided tools for NVIDIA, AMD, and Intel GPUs.
--   **macOS**: Utilize macOS-specific frameworks for GPU monitoring.
+-   **macOS**: Enhance existing macOS support to include more detailed metrics like utilization and temperature, potentially using lower-level frameworks.
 
 This will provide a comprehensive, cross-platform GPU monitoring solution.
 

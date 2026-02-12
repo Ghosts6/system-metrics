@@ -90,14 +90,44 @@ void DashboardWidget::setupUI()
     // Add spacer after CPU section
     m_metricsLayout->addItem(new QSpacerItem(20, 20, QSizePolicy::Minimum, QSizePolicy::Fixed), m_currentRow++, 0, 1, 2);
 
-    // GPU section title (will be shown/hidden dynamically)
+    // GPU section title (always visible)
     m_gpuSectionTitle = new QLabel("GPU Usage", this);
     m_gpuSectionTitle->setStyleSheet("font-size: 16px; font-weight: bold; color: #14a085;");
     m_metricsLayout->addWidget(m_gpuSectionTitle, m_currentRow++, 0, 1, 2);
-    m_gpuSectionTitle->hide();
 
     // Reserve space for GPU widgets (they will be inserted here dynamically)
     m_gpuStartRow = m_currentRow;
+    
+    // Create initial GPU widget with 0% (will be updated when metrics arrive)
+    GpuDisplayWidgets initialWidgets;
+    initialWidgets.nameLabel = new QLabel("0%", this);
+    initialWidgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #b0b0b0;");
+    initialWidgets.nameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    initialWidgets.nameLabel->setMinimumWidth(120);
+    initialWidgets.nameLabel->setMaximumWidth(120);
+    
+    initialWidgets.utilBar = new QProgressBar(this);
+    initialWidgets.utilBar->setRange(0, 100);
+    initialWidgets.utilBar->setValue(0);
+    initialWidgets.utilBar->setTextVisible(true);
+    initialWidgets.utilBar->setFormat("0%");
+    initialWidgets.utilBar->setMinimumHeight(35);
+    initialWidgets.utilBar->setMaximumHeight(35);
+    initialWidgets.utilBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    initialWidgets.utilBar->setStyleSheet(
+        "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #b0b0b0; font-weight: bold; text-align: center; }"
+        "QProgressBar::chunk { background-color: #3d3d3d; border-radius: 6px; }"
+    );
+    
+    initialWidgets.detailLabel = new QLabel("Name: -", this);
+    initialWidgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
+    
+    m_metricsLayout->addWidget(initialWidgets.nameLabel, m_currentRow, 0);
+    m_metricsLayout->addWidget(initialWidgets.utilBar, m_currentRow, 1);
+    m_metricsLayout->addWidget(initialWidgets.detailLabel, m_currentRow + 1, 0, 1, 2);
+    m_currentRow += 2;
+    
+    m_gpuDisplayWidgets.append(initialWidgets);
 
     // Memory section
     m_memoryTitle = new QLabel("Memory Usage", this);
@@ -350,11 +380,14 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
         m_lastMetricTimestamp = currentTimestamp;
     }
 
-    // GPU (dynamic handling of multiple GPUs)
+    // GPU (always show at least one GPU section, even if count is 0)
     QJsonArray gpusArray = metrics.contains("gpus") && metrics["gpus"].isArray() ? metrics["gpus"].toArray() : QJsonArray();
-
+    
+    // Always show GPU section - if no GPUs, show one with 0%
+    int displayGpuCount = gpusArray.isEmpty() ? 1 : gpusArray.size();
+    
     // Only rebuild GPU widgets if the count has changed
-    if (gpusArray.size() != m_gpuDisplayWidgets.size()) {
+    if (displayGpuCount != m_gpuDisplayWidgets.size()) {
         // Clear existing GPU widgets
         for (const auto& widgets : m_gpuDisplayWidgets) {
             m_metricsLayout->removeWidget(widgets.nameLabel);
@@ -367,45 +400,42 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
         m_gpuDisplayWidgets.clear();
 
         int currentRow = m_gpuStartRow;
+        
+        // Always show GPU section
+        m_gpuSectionTitle->show();
+        
+        // Create and add GPU widgets (at least one)
+        for (int i = 0; i < displayGpuCount; ++i) {
+            GpuDisplayWidgets newWidgets;
 
-        if (!gpusArray.isEmpty()) {
-            m_gpuSectionTitle->show();
+            newWidgets.nameLabel = new QLabel("0%", this);
+            newWidgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #b0b0b0;");
+            newWidgets.nameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            newWidgets.nameLabel->setMinimumWidth(120);
+            newWidgets.nameLabel->setMaximumWidth(120);
+
+            newWidgets.utilBar = new QProgressBar(this);
+            newWidgets.utilBar->setRange(0, 100);
+            newWidgets.utilBar->setValue(0);
+            newWidgets.utilBar->setTextVisible(true);
+            newWidgets.utilBar->setFormat("0%");
+            newWidgets.utilBar->setMinimumHeight(35);
+            newWidgets.utilBar->setMaximumHeight(35);
+            newWidgets.utilBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            newWidgets.utilBar->setStyleSheet(
+                "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #b0b0b0; font-weight: bold; text-align: center; }"
+                "QProgressBar::chunk { background-color: #3d3d3d; border-radius: 6px; }"
+            );
+
+            newWidgets.detailLabel = new QLabel("Name: -", this);
+            newWidgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
+
+            m_metricsLayout->addWidget(newWidgets.nameLabel, currentRow, 0);
+            m_metricsLayout->addWidget(newWidgets.utilBar, currentRow, 1);
+            m_metricsLayout->addWidget(newWidgets.detailLabel, currentRow + 1, 0, 1, 2);
             
-            // Create and add new GPU widgets
-            for (int i = 0; i < gpusArray.size(); ++i) {
-                GpuDisplayWidgets newWidgets;
-
-                newWidgets.nameLabel = new QLabel("0%", this);
-                newWidgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
-                newWidgets.nameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-                newWidgets.nameLabel->setMinimumWidth(120);
-                newWidgets.nameLabel->setMaximumWidth(120);
-
-                newWidgets.utilBar = new QProgressBar(this);
-                newWidgets.utilBar->setRange(0, 100);
-                newWidgets.utilBar->setValue(0);
-                newWidgets.utilBar->setTextVisible(true);
-                newWidgets.utilBar->setFormat("%p%");
-                newWidgets.utilBar->setMinimumHeight(35);
-                newWidgets.utilBar->setMaximumHeight(35);
-                newWidgets.utilBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-                newWidgets.utilBar->setStyleSheet(
-                    "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
-                    "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
-                );
-
-                newWidgets.detailLabel = new QLabel("Name: -", this);
-                newWidgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
-
-                m_metricsLayout->addWidget(newWidgets.nameLabel, currentRow, 0);
-                m_metricsLayout->addWidget(newWidgets.utilBar, currentRow, 1);
-                m_metricsLayout->addWidget(newWidgets.detailLabel, currentRow + 1, 0, 1, 2);
-                
-                m_gpuDisplayWidgets.append(newWidgets);
-                currentRow += 2;
-            }
-        } else {
-            m_gpuSectionTitle->hide();
+            m_gpuDisplayWidgets.append(newWidgets);
+            currentRow += 2;
         }
 
         // Reposition all sections after GPU widgets
@@ -413,16 +443,44 @@ void DashboardWidget::updateMetrics(const QJsonObject &metrics)
     }
     
     // Update GPU widget values (without changing layout)
-    for (int i = 0; i < gpusArray.size(); ++i) {
-        QJsonObject gpuData = gpusArray[i].toObject();
-        GpuDisplayWidgets &widgets = m_gpuDisplayWidgets[i];
-        
-        double utilization = gpuData["utilization"].toDouble();
-        widgets.nameLabel->setText(formatPercent(utilization));
-        widgets.utilBar->setValue(static_cast<int>(utilization));
+    if (!gpusArray.isEmpty()) {
+        // Update with actual GPU data
+        for (int i = 0; i < gpusArray.size() && i < m_gpuDisplayWidgets.size(); ++i) {
+            QJsonObject gpuData = gpusArray[i].toObject();
+            GpuDisplayWidgets &widgets = m_gpuDisplayWidgets[i];
+            
+            double utilization = gpuData["utilization"].toDouble();
+            widgets.nameLabel->setText(formatPercent(utilization));
+            widgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #e0e0e0;");
+            widgets.utilBar->setValue(static_cast<int>(utilization));
+            widgets.utilBar->setFormat("%p%");
+            widgets.utilBar->setStyleSheet(
+                "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #e0e0e0; font-weight: bold; text-align: center; }"
+                "QProgressBar::chunk { background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0d7377, stop:0.5 #14a085, stop:1 #0d7377); border-radius: 6px; }"
+            );
 
-        QString gpuName = gpuData["name"].toString();
-        widgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
+            QString gpuName = gpuData["name"].toString();
+            if (gpuName.isEmpty()) {
+                gpuName = "Unknown GPU";
+            }
+            widgets.detailLabel->setText(QString("Name: %1").arg(gpuName));
+            widgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
+        }
+    } else {
+        // Show 0% for all GPU widgets when no GPU data
+        for (int i = 0; i < m_gpuDisplayWidgets.size(); ++i) {
+            GpuDisplayWidgets &widgets = m_gpuDisplayWidgets[i];
+            widgets.nameLabel->setText("0%");
+            widgets.nameLabel->setStyleSheet("font-size: 32px; font-weight: bold; color: #b0b0b0;");
+            widgets.utilBar->setValue(0);
+            widgets.utilBar->setFormat("0%");
+            widgets.utilBar->setStyleSheet(
+                "QProgressBar { border: 2px solid #2d2d2d; border-radius: 8px; background-color: #2d2d2d; color: #b0b0b0; font-weight: bold; text-align: center; }"
+                "QProgressBar::chunk { background-color: #3d3d3d; border-radius: 6px; }"
+            );
+            widgets.detailLabel->setText("Name: -");
+            widgets.detailLabel->setStyleSheet("color: #b0b0b0; font-size: 11px;");
+        }
     }
 }
 

@@ -43,7 +43,29 @@ cmake ..
 make
 ```
 
-### 3. Run Qt Client
+### 3. Run C Collector (macOS Native)
+
+For optimal system metric collection on macOS (avoiding Docker VM metrics), it is recommended to run the C collector natively on your host machine.
+
+1.  **Build the C Collector:**
+    ```bash
+    cd collector-c
+    make
+    ```
+2.  **Run the Collector:**
+    We've provided a helper script to build and run the collector:
+    ```bash
+    ./collector-c/run-native.sh
+    ```
+    You can customize its behavior by passing arguments, for example:
+    ```bash
+    ./collector-c/run-native.sh -u http://localhost:8000 -i 10 -d
+    ```
+    (Use the `-d` flag to run it as a daemon in the background.)
+
+This will ensure the collector gathers metrics directly from your macOS host. Services like the FastAPI backend, Redis, and the database can continue to run via `docker-compose`.
+
+### 4. Run Qt Client
 
 ```bash
 ./system-metrics-client

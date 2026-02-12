@@ -1,0 +1,23 @@
+# Object files and binaries
+**/*.o
+**/*.a
+**/*.so
+**/*.dylib
+collector-c/collector
+collector-c/collector.exe
+collector-c/src/*.o
+
+# Build directories
+collector-c/build/
+client/build/
+
+# macOS specific
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace
