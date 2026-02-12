@@ -8,8 +8,8 @@ services:
     depends_on:
       - db
       - redis
-    environment:
-      REDIS_HOST: redis
+    env_file:
+      - ./docker.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -40,13 +40,15 @@ services:
       backend:
         condition: service_healthy
     command: ["--url", "http://backend:8000", "--interval", "5"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # Uncomment the 'deploy' section below to enable NVIDIA GPU monitoring.
+    # Requires the NVIDIA Container Toolkit to be installed on the host system (Linux only).
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   test:
     build:

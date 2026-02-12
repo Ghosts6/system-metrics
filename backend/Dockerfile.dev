@@ -8,6 +8,13 @@ WORKDIR /app
 # Install poetry
 RUN pip install poetry
 
+# Install build dependencies for psutil
+RUN apt-get clean && apt-get update && \
+    for i in $(seq 1 5); do \
+        apt-get install -y --no-install-recommends gcc python3-dev && break || sleep 10; \
+    done && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy project files
 COPY backend/pyproject.toml ./
 COPY backend/poetry.lock* ./

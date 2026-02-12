@@ -6,6 +6,13 @@ WORKDIR /app
 # Install poetry
 RUN pip install poetry
 
+# Install build dependencies for psutil
+RUN apt-get clean && apt-get update && \
+    for i in $(seq 1 5); do \
+        apt-get install -y --no-install-recommends gcc python3-dev && break || sleep 10; \
+    done && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy project definition files from the backend directory
 COPY backend/pyproject.toml ./
 # The lock file might not exist yet, so make it optional
