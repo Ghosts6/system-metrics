@@ -56,35 +56,53 @@ int main(int argc, char *argv[])
     QWidget *centralWidget = new QWidget(&mainWindow);
     QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
 
-    // Connection bar
-    QHBoxLayout *connectionLayout = new QHBoxLayout();
-    connectionLayout->setSpacing(10);
-    connectionLayout->setContentsMargins(15, 15, 15, 15);
+    // -- Connection Bar --
+    QFrame *connectionBar = new QFrame(&mainWindow);
+    connectionBar->setObjectName("connectionBar");
+    connectionBar->setStyleSheet(
+        "#connectionBar { "
+        "  background-color: #2a2a2a; "
+        "  border-radius: 4px; "
+        "  border: 1px solid #3d3d3d; "
+        "}");
     
-    QLabel *urlLabel = new QLabel("API URL:", &mainWindow);
-    urlLabel->setStyleSheet("color: #e0e0e0; font-size: 13px; font-weight: bold;");
-    QLineEdit *urlEdit = new QLineEdit(defaultApiUrl, &mainWindow);
+    QHBoxLayout *connectionLayout = new QHBoxLayout(connectionBar);
+    connectionLayout->setSpacing(15);
+    connectionLayout->setContentsMargins(15, 10, 15, 10);
+    
+    // Left side: API URL
+    QLabel *urlLabel = new QLabel("API URL:", connectionBar);
+    urlLabel->setStyleSheet("color: #b0b0b0; font-size: 13px; font-weight: bold;");
+    
+    QLineEdit *urlEdit = new QLineEdit(defaultApiUrl, connectionBar);
+    urlEdit->setMinimumWidth(300);
     urlEdit->setStyleSheet(
-        "QLineEdit { background-color: #2d2d2d; border: 2px solid #3d3d3d; border-radius: 4px; padding: 8px; color: #e0e0e0; font-size: 12px; }"
-        "QLineEdit:focus { border: 2px solid #0d7377; }"
+        "QLineEdit { background-color: #3d3d3d; border: 1px solid #555; border-radius: 4px; padding: 8px; color: #e0e0e0; font-size: 12px; }"
+        "QLineEdit:focus { border: 1px solid #14a085; }"
     );
     
-    QLabel *connectionStatus = new QLabel("● Disconnected", &mainWindow);
-    connectionStatus->setStyleSheet("color: #ff6b6b; font-size: 12px; font-weight: bold; padding: 5px;");
+    AnimatedButton *connectButton = new AnimatedButton("Connect", connectionBar);
     
-    AnimatedButton *connectButton = new AnimatedButton("Connect", &mainWindow);
-    AnimatedButton *startLiveButton = new AnimatedButton("Start Live Updates", &mainWindow);
-    AnimatedButton *stopLiveButton = new AnimatedButton("Stop Live Updates", &mainWindow);
-
     connectionLayout->addWidget(urlLabel);
     connectionLayout->addWidget(urlEdit);
-    connectionLayout->addWidget(connectionStatus);
     connectionLayout->addWidget(connectButton);
+    
+    // Spacer
+    connectionLayout->addStretch(1);
+    
+    // Right side: Status and Controls
+    QLabel *connectionStatus = new QLabel("● Disconnected", connectionBar);
+    connectionStatus->setStyleSheet("color: #ff6b6b; font-size: 12px; font-weight: bold; padding: 5px;");
+    
+    AnimatedButton *startLiveButton = new AnimatedButton("Start Live", connectionBar);
+    AnimatedButton *stopLiveButton = new AnimatedButton("Stop Live", connectionBar);
+    stopLiveButton->setEnabled(false); // Initially disabled
+    
+    connectionLayout->addWidget(connectionStatus);
     connectionLayout->addWidget(startLiveButton);
     connectionLayout->addWidget(stopLiveButton);
-    connectionLayout->addStretch();
-
-    mainLayout->addLayout(connectionLayout);
+    
+    mainLayout->addWidget(connectionBar);
 
     // Create API client
     ApiClient *apiClient = new ApiClient(&mainWindow);
@@ -99,6 +117,33 @@ int main(int argc, char *argv[])
 
     // Create tab widget
     QTabWidget *tabWidget = new QTabWidget(&mainWindow);
+    tabWidget->setStyleSheet(
+        "QTabWidget::pane {"
+        "  border: 1px solid #3d3d3d;"
+        "  border-top: 1px solid #3d3d3d;"
+        "  background-color: #2a2a2a;"
+        "}"
+        "QTabBar::tab {"
+        "  background-color: #2a2a2a;"
+        "  color: #b0b0b0;"
+        "  border: 1px solid #3d3d3d;"
+        "  border-bottom: none;"
+        "  border-top-left-radius: 4px;"
+        "  border-top-right-radius: 4px;"
+        "  padding: 10px 25px;"
+        "  margin-right: 2px;"
+        "}"
+        "QTabBar::tab:selected {"
+        "  background-color: #2a2a2a;"
+        "  color: #14a085;"
+        "  border: 1px solid #3d3d3d;"
+        "  border-bottom: 2px solid #14a085;"
+        "}"
+        "QTabBar::tab:hover {"
+        "  background-color: #353535;"
+        "  color: #e0e0e0;"
+        "}"
+    );
     tabWidget->addTab(dashboardWidget, "Dashboard");
     tabWidget->addTab(metricsWidget, "Live Metrics");
     tabWidget->addTab(chartWidget, "Historical Charts");
@@ -144,14 +189,40 @@ int main(int argc, char *argv[])
     
     QMenu *fileMenu = menuBar->addMenu("File");
     QAction *settingsAction = fileMenu->addAction("Settings...");
+    fileMenu->addSeparator();
+    QAction *exportAction = fileMenu->addAction("Export Data...");
+    QAction *clearCacheAction = fileMenu->addAction("Clear Cache");
+    fileMenu->addSeparator();
     QAction *exitAction = fileMenu->addAction("Exit");
     
     QMenu *viewMenu = menuBar->addMenu("View");
+    QMenu *themeMenu = viewMenu->addMenu("Theme");
+    QAction *lightThemeAction = themeMenu->addAction("Light Theme");
+    QAction *darkThemeAction = themeMenu->addAction("Dark Theme");
+    darkThemeAction->setCheckable(true);
+    darkThemeAction->setChecked(true);
+    viewMenu->addSeparator();
     QAction *refreshAction = viewMenu->addAction("Refresh All");
+
+    QMenu *toolsMenu = menuBar->addMenu("Tools");
+    QAction *pingAction = toolsMenu->addAction("Ping Host");
+    QAction *tracerouteAction = toolsMenu->addAction("Traceroute Host");
     
     QMenu *helpMenu = menuBar->addMenu("Help");
     QAction *aboutAction = helpMenu->addAction("About");
 
+    // --- TODO: Connect new actions ---
+    auto notImplemented = [&]() {
+        QMessageBox::information(&mainWindow, "Not Implemented", "This feature is not yet implemented.");
+    };
+
+    QObject::connect(exportAction, &QAction::triggered, notImplemented);
+    QObject::connect(clearCacheAction, &QAction::triggered, notImplemented);
+    QObject::connect(lightThemeAction, &QAction::triggered, notImplemented);
+    QObject::connect(darkThemeAction, &QAction::triggered, notImplemented);
+    QObject::connect(pingAction, &QAction::triggered, notImplemented);
+    QObject::connect(tracerouteAction, &QAction::triggered, notImplemented);
+    
     // Settings dialog
     SettingsDialog *settingsDialog = new SettingsDialog(&mainWindow);
     
@@ -201,11 +272,21 @@ int main(int argc, char *argv[])
         int interval = settingsDialog->refreshInterval();
         apiClient->startLiveUpdates(interval);
         mainWindow.statusBar()->showMessage(QString("Live updates started (%1s interval)").arg(interval), 2000);
+        
+        startLiveButton->setEnabled(false);
+        stopLiveButton->setEnabled(true);
+        connectButton->setEnabled(false);
+        urlEdit->setEnabled(false);
     });
 
     QObject::connect(stopLiveButton, &QPushButton::clicked, [=, &mainWindow]() {
         apiClient->stopLiveUpdates();
         mainWindow.statusBar()->showMessage("Live updates stopped", 2000);
+        
+        startLiveButton->setEnabled(true);
+        stopLiveButton->setEnabled(false);
+        connectButton->setEnabled(true);
+        urlEdit->setEnabled(true);
     });
     
     // Auto-connect on URL change
@@ -224,7 +305,7 @@ int main(int argc, char *argv[])
         apiClient->fetchMetricsHistory(1, 1000, start, end);
     });
     
-    QObject::connect(apiClient, &ApiClient::healthReceived, [=, &mainWindow, &connectionStatus](const QJsonObject &health) {
+    QObject::connect(apiClient, &ApiClient::healthReceived, [&](const QJsonObject &health) {
         QString status = QString("Status: %1, Database: %2, Redis: %3")
                         .arg(health["status"].toString())
                         .arg(health["database"].toString())
@@ -234,10 +315,17 @@ int main(int argc, char *argv[])
         connectionStatus->setText("● Connected");
         connectionStatus->setStyleSheet("color: #14a085; font-size: 12px; font-weight: bold; padding: 5px;");
         
+        connectButton->setEnabled(true);
+        startLiveButton->setEnabled(true);
+        
         // Auto-fetch data on successful connection
         apiClient->fetchLiveMetrics();
         logViewer->refreshLogs();
-        apiClient->startLiveUpdates(defaultRefreshInterval);
+        
+        // Automatically start live updates on connect
+        if (settings.value("autoLiveUpdates", true).toBool()) {
+            startLiveButton->click();
+        }
     });
     
     QObject::connect(apiClient, &ApiClient::logsReceived, logViewer, &LogViewer::updateLogs);
@@ -247,6 +335,13 @@ int main(int argc, char *argv[])
     QObject::connect(apiClient, &ApiClient::errorOccurred, [=, &mainWindow, &connectionStatus](const QString &error) {
         connectionStatus->setText("● Disconnected");
         connectionStatus->setStyleSheet("color: #ff6b6b; font-size: 12px; font-weight: bold; padding: 5px;");
+        
+        apiClient->stopLiveUpdates();
+        
+        startLiveButton->setEnabled(false);
+        stopLiveButton->setEnabled(false);
+        connectButton->setEnabled(true);
+        urlEdit->setEnabled(true);
         
         // Only show error dialog for manual connections, not auto-connect failures
         if (error.contains("Network error")) {

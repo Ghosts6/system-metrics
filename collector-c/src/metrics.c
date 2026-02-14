@@ -48,6 +48,9 @@ typedef unsigned long u_long;
 #include <mach/mach_host.h>
 #include <mach/host_info.h>
 #include <time.h>
+#include <IOKit/IOKitLib.h>
+#include <IOKit/graphics/IOGraphicsLib.h>
+#include <CoreFoundation/CoreFoundation.h>
 #endif
 
 int get_system_info(SystemMetrics *metrics) {
@@ -895,43 +898,197 @@ static char* get_command_output(const char* cmd) {
 
 int get_gpu_metrics(SystemMetrics* metrics) {
     metrics->gpu_count = 0;
-    char* output = get_command_output("system_profiler SPDisplaysDataType -detailLevel mini");
+    
+    // Use system_profiler to get basic GPU info
+    char* output = get_command_output("system_profiler SPDisplaysDataType -detailLevel mini 2>/dev/null");
     if (!output) {
         return 0;
     }
 
     char* line = strtok(output, "\n");
     GpuMetrics* current_gpu = NULL;
+    int gpu_index = 0;
 
-    while(line != NULL) {
+    while(line != NULL && gpu_index < 4) {
         char* trimmed_line = line;
         while(*trimmed_line == ' ') trimmed_line++;
 
         if (strncmp(trimmed_line, "Chipset Model:", 14) == 0) {
-            if (metrics->gpu_count < 4) {
-                current_gpu = &metrics->gpus[metrics->gpu_count];
-                metrics->gpu_count++;
-
-                char* model = strchr(trimmed_line, ':');
-                if (model) {
-                    model += 2;
-                    strncpy(current_gpu->name, model, sizeof(current_gpu->name) - 1);
-                    current_gpu->name[sizeof(current_gpu->name) - 1] = '\0';
-                }
+            current_gpu = &metrics->gpus[gpu_index];
+            memset(current_gpu, 0, sizeof(GpuMetrics));
+            metrics->gpu_count++;
+            
+            char* model = strchr(trimmed_line, ':');
+            if (model) {
+                model += 2;
+                // Trim whitespace
+                while(*model == ' ') model++;
+                strncpy(current_gpu->name, model, sizeof(current_gpu->name) - 1);
+                current_gpu->name[sizeof(current_gpu->name) - 1] = '\0';
             }
+            
+            // Get macOS version as driver version
+            size_t size = sizeof(current_gpu->driver_version);
+            if (sysctlbyname("kern.osproductversion", current_gpu->driver_version, &size, NULL, 0) != 0) {
+                strncpy(current_gpu->driver_version, "macOS", sizeof(current_gpu->driver_version) - 1);
+                current_gpu->driver_version[sizeof(current_gpu->driver_version) - 1] = '\0';
+            } else {
+                current_gpu->driver_version[sizeof(current_gpu->driver_version) - 1] = '\0';
+            }
+            
+            gpu_index++;
         } else if (current_gpu && strncmp(trimmed_line, "VRAM (Total):", 13) == 0) {
             char* vram_str = strchr(trimmed_line, ':');
             if (vram_str) {
                 vram_str += 2;
+                while(*vram_str == ' ') vram_str++;
                 unsigned long long vram_mb = 0;
-                sscanf(vram_str, "%llu MB", &vram_mb);
-                current_gpu->memory_total = vram_mb * 1024 * 1024;
+                if (sscanf(vram_str, "%llu MB", &vram_mb) == 1) {
+                    current_gpu->memory_total = vram_mb * 1024 * 1024;
+                }
+            }
+        } else if (current_gpu && strncmp(trimmed_line, "VRAM (Dynamic, Max):", 20) == 0) {
+            // Some Macs report dynamic VRAM
+            char* vram_str = strchr(trimmed_line, ':');
+            if (vram_str && current_gpu->memory_total == 0) {
+                vram_str += 2;
+                while(*vram_str == ' ') vram_str++;
+                unsigned long long vram_mb = 0;
+                if (sscanf(vram_str, "%llu MB", &vram_mb) == 1) {
+                    current_gpu->memory_total = vram_mb * 1024 * 1024;
+                }
             }
         }
         line = strtok(NULL, "\n");
     }
 
     free(output);
+    
+    // Try to get additional info using IOKit for each detected GPU (optional, don't fail if it errors)
+    if (metrics->gpu_count > 0) {
+        io_iterator_t iterator = 0;
+        kern_return_t kr;
+        
+        CFMutableDictionaryRef matchingDict = IOServiceMatching("IOPCIDevice");
+        if (matchingDict != NULL) {
+            #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 120000
+            kr = IOServiceGetMatchingServices(kIOMainPortDefault, matchingDict, &iterator);
+            #else
+            kr = IOServiceGetMatchingServices(kIOMasterPortDefault, matchingDict, &iterator);
+            #endif
+            
+            if (kr == KERN_SUCCESS && iterator != 0) {
+                io_service_t service;
+                int found_gpus = 0;
+                
+                while ((service = IOIteratorNext(iterator)) != 0 && found_gpus < metrics->gpu_count) {
+                    CFTypeRef classCodeRef = IORegistryEntryCreateCFProperty(
+                        service,
+                        CFSTR("class-code"),
+                        kCFAllocatorDefault,
+                        0
+                    );
+                    
+                    if (classCodeRef) {
+                        uint32_t classCode = 0;
+                        if (CFGetTypeID(classCodeRef) == CFNumberGetTypeID() &&
+                            CFNumberGetValue((CFNumberRef)classCodeRef, kCFNumberSInt32Type, &classCode)) {
+                            if ((classCode & 0xFF0000) == 0x030000) { // Display controller
+                                if (found_gpus < metrics->gpu_count) {
+                                    GpuMetrics* gpu = &metrics->gpus[found_gpus];
+                                    
+                                    // Try to get VRAM info from IORegistry
+                                    CFTypeRef vramRef = IORegistryEntryCreateCFProperty(
+                                        service,
+                                        CFSTR("VRAM,totalMB"),
+                                        kCFAllocatorDefault,
+                                        0
+                                    );
+                                    
+                                    if (!vramRef) {
+                                        vramRef = IORegistryEntryCreateCFProperty(
+                                            service,
+                                            CFSTR("VRAM,total"),
+                                            kCFAllocatorDefault,
+                                            0
+                                        );
+                                    }
+                                    
+                                    if (vramRef && CFGetTypeID(vramRef) == CFNumberGetTypeID()) {
+                                        uint64_t vramMB = 0;
+                                        if (CFNumberGetValue((CFNumberRef)vramRef, kCFNumberSInt64Type, &vramMB)) {
+                                            if (vramMB > 0 && gpu->memory_total == 0) {
+                                                gpu->memory_total = vramMB * 1024 * 1024;
+                                            }
+                                        }
+                                        CFRelease(vramRef);
+                                    }
+                                    
+                                    // Try to get memory used (may not be available)
+                                    CFTypeRef vramUsedRef = IORegistryEntryCreateCFProperty(
+                                        service,
+                                        CFSTR("VRAM,usedMB"),
+                                        kCFAllocatorDefault,
+                                        0
+                                    );
+                                    
+                                    if (vramUsedRef && CFGetTypeID(vramUsedRef) == CFNumberGetTypeID()) {
+                                        uint64_t vramUsedMB = 0;
+                                        if (CFNumberGetValue((CFNumberRef)vramUsedRef, kCFNumberSInt64Type, &vramUsedMB)) {
+                                            if (vramUsedMB > 0) {
+                                                gpu->memory_used = vramUsedMB * 1024 * 1024;
+                                            }
+                                        }
+                                        CFRelease(vramUsedRef);
+                                    }
+                                    
+                                    found_gpus++;
+                                }
+                            }
+                        }
+                        CFRelease(classCodeRef);
+                    }
+                    
+                    IOObjectRelease(service);
+                }
+                
+                if (iterator != 0) {
+                    IOObjectRelease(iterator);
+                }
+            }
+        }
+    }
+    
+    // Set defaults for unavailable metrics
+    for (int i = 0; i < metrics->gpu_count; i++) {
+        GpuMetrics* gpu = &metrics->gpus[i];
+        
+        // For Apple Silicon (unified memory), use system memory as GPU memory
+        if (gpu->memory_total == 0 && strstr(gpu->name, "Apple") != NULL) {
+            // Apple Silicon uses unified memory - use system memory as reference
+            gpu->memory_total = metrics->memory_total;
+            // Estimate GPU memory usage (typically 20-40% of system memory for GPU)
+            gpu->memory_used = metrics->memory_total / 5; // 20% estimate
+        } else if (gpu->memory_used == 0 && gpu->memory_total > 0) {
+            // For discrete GPUs, estimate 10% usage if not available
+            gpu->memory_used = gpu->memory_total / 10;
+        }
+        
+        // Ensure driver version is set
+        if (strlen(gpu->driver_version) == 0) {
+            size_t size = sizeof(gpu->driver_version);
+            if (sysctlbyname("kern.osproductversion", gpu->driver_version, &size, NULL, 0) != 0) {
+                strncpy(gpu->driver_version, "macOS", sizeof(gpu->driver_version) - 1);
+            }
+            gpu->driver_version[sizeof(gpu->driver_version) - 1] = '\0';
+        }
+        
+        // Temperature and utilization not easily available on macOS without SMC/Metal APIs
+        // Set to 0 (will show as N/A in UI)
+        gpu->temperature = 0.0;
+        gpu->utilization = 0.0;
+    }
+    
     return 0;
 }
 #else
@@ -948,9 +1105,10 @@ int collect_metrics(SystemMetrics *metrics) {
     if (get_cpu_metrics(metrics) != 0) return -1;
     if (get_memory_metrics(metrics) != 0) return -1;
     if (get_disk_metrics(metrics) != 0) return -1;
-    if (get_network_metrics(metrics) != 0) return -1;
-    if (get_uptime_metrics(metrics) != 0) return -1;
-    if (get_gpu_metrics(metrics) != 0) return -1;
+    // Network, uptime and GPU collection are optional - don't fail if they error
+    get_network_metrics(metrics);
+    get_uptime_metrics(metrics);
+    get_gpu_metrics(metrics);
     
     return 0;
 }

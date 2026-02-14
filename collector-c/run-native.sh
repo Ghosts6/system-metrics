@@ -21,6 +21,6 @@ make
 
 echo "Collector built successfully."
 echo "Starting the collector..."
-./collector -u http://localhost:8000 -P -A WARNING "$@"
+./collector -u http://localhost:8000 -P -A INFO "$@"
 
 echo "Collector started."
