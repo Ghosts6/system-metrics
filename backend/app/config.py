@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     
     # Application settings
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    api_url: str = os.getenv("API_URL", "http://localhost:8000") # Base URL for the API
     api_v1_prefix: str = "/api/v1"
     
     # Metrics collection settings
@@ -28,6 +29,7 @@ class Settings(BaseSettings):
     metrics_retention_days: int = int(os.getenv("METRICS_RETENTION_DAYS", "30"))
     metrics_collector: str = os.getenv("METRICS_COLLECTOR", "psutil")  # psutil or c-collector
     c_collector_path: Optional[str] = os.getenv("C_COLLECTOR_PATH", None)  # Path to C collector binary
+    log_to_api_min_level: Optional[str] = os.getenv("LOG_TO_API_MIN_LEVEL", None) # Minimum level for sending logs to API (e.g., "ERROR", "WARNING")
     
     model_config = ConfigDict(
         env_file=".env",

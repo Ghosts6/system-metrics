@@ -21,6 +21,7 @@
 #define DEFAULT_API_URL "http://localhost:8000"
 #define DEFAULT_INTERVAL 5
 #define DEFAULT_CONFIG_FILE "/etc/system-metrics/collector.conf"
+#define DEFAULT_LOG_TO_API 0 // Default to not sending logs to API
 
 static void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -29,6 +30,8 @@ static void print_usage(const char *program_name) {
     printf("  -u, --url URL       API base URL (default: %s)\n", DEFAULT_API_URL);
     printf("  -i, --interval SEC  Collection interval in seconds (default: %d)\n", DEFAULT_INTERVAL);
     printf("  -l, --logfile FILE  Path to log file (default: stderr)\n");
+    printf("  -P, --log-to-api    Send logs to the backend API\n");
+    printf("  -A, --api-log-level LEVEL  Minimum log level for API (INFO, WARNING, ERROR, DEBUG)\n");
     printf("  -d, --daemon        Run as a background daemon\n");
     printf("  -o, --output        Output JSON to stdout instead of sending to API\n");
     printf("  -h, --help          Show this help message\n");
@@ -37,6 +40,7 @@ static void print_usage(const char *program_name) {
     printf("  %s -c /path/to/collector.conf\n", program_name);
     printf("  %s -u http://localhost:8000 -i 10\n", program_name);
     printf("  %s -l /var/log/collector.log -d\n", program_name);
+    printf("  %s -P -A WARNING\n", program_name);
 }
 
 #ifndef _WIN32
@@ -66,6 +70,15 @@ static void daemonize(void) {
 }
 #endif
 
+// Helper to convert string to LogLevel
+static LogLevel string_to_loglevel(const char* level_str) {
+    if (strcmp(level_str, "DEBUG") == 0) return LOG_LEVEL_DEBUG;
+    if (strcmp(level_str, "INFO") == 0) return LOG_LEVEL_INFO;
+    if (strcmp(level_str, "WARNING") == 0) return LOG_LEVEL_WARNING;
+    if (strcmp(level_str, "ERROR") == 0) return LOG_LEVEL_ERROR;
+    return LOG_LEVEL_INFO; // Default to INFO
+}
+
 int main(int argc, char *argv[]) {
     char *config_file = strdup(DEFAULT_CONFIG_FILE);
     char *api_url = NULL;
@@ -73,12 +86,16 @@ int main(int argc, char *argv[]) {
     int interval = -1;
     int output_only = 0;
     int daemon = 0;
+    int log_to_api = DEFAULT_LOG_TO_API;
+    LogLevel api_log_level = LOG_LEVEL_INFO;
     
     static struct option long_options[] = {
         {"config", required_argument, 0, 'c'},
         {"url", required_argument, 0, 'u'},
         {"interval", required_argument, 0, 'i'},
         {"logfile", required_argument, 0, 'l'},
+        {"log-to-api", no_argument, 0, 'P'},
+        {"api-log-level", required_argument, 0, 'A'},
         {"daemon", no_argument, 0, 'd'},
         {"output", no_argument, 0, 'o'},
         {"help", no_argument, 0, 'h'},
@@ -88,7 +105,7 @@ int main(int argc, char *argv[]) {
     int opt;
     int option_index = 0;
     
-    while ((opt = getopt_long(argc, argv, "c:u:i:l:doh", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:u:i:l:PA:doh", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 free(config_file);
@@ -108,6 +125,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'o':
                 output_only = 1;
+                break;
+            case 'P':
+                log_to_api = 1;
+                break;
+            case 'A':
+                api_log_level = string_to_loglevel(optarg);
                 break;
             case 'h':
                 print_usage(argv[0]);
@@ -132,6 +155,13 @@ int main(int argc, char *argv[]) {
             const char* value = ini_get_value(&config, "logfile");
             if (value) log_file = strdup(value);
         }
+        if (log_to_api == DEFAULT_LOG_TO_API) {
+            const char* value = ini_get_value(&config, "log_to_api");
+            if (value) log_to_api = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
+        }
+        // Read api_log_level from config file
+        const char* value = ini_get_value(&config, "api_log_level");
+        if (value) api_log_level = string_to_loglevel(value);
     }
 
     if (!api_url) api_url = strdup(DEFAULT_API_URL);
@@ -146,7 +176,8 @@ int main(int argc, char *argv[]) {
 #endif
     }
     
-    log_init(log_file);
+    log_init(log_file, api_url, log_to_api);
+    log_set_api_min_level(api_log_level); // Set the API min log level
     log_message(LOG_LEVEL_INFO, "Collector starting...");
     
     if (!output_only) {

@@ -189,3 +189,63 @@ int send_metrics_to_api(const char *api_url, const SystemMetrics *metrics) {
     
     return 0;
 }
+
+int send_log_to_api(const char *api_url, const char *level, const char *message) {
+    CURL *curl;
+    CURLcode res;
+    char url[512];
+    char *json_payload = NULL;
+    struct curl_slist *headers = NULL;
+    struct ResponseBuffer response = {0};
+    
+    size_t payload_max_len = 256 + strlen(level) + strlen(message); 
+    json_payload = (char*)malloc(payload_max_len);
+    if (!json_payload) {
+        fprintf(stderr, "ERROR: Failed to allocate memory for log JSON payload\n");
+        return -1;
+    }
+    snprintf(json_payload, payload_max_len,
+             "{\"level\":\"%s\",\"message\":\"%s\",\"source\":\"C_Collector\"}",
+             level, message);
+
+    snprintf(url, sizeof(url), "%s/api/v1/logs/", api_url);
+
+    curl = curl_easy_init();
+    if (!curl) {
+        fprintf(stderr, "ERROR: Failed to initialize CURL for log sending\n");
+        free(json_payload);
+        return -1;
+    }
+    
+    response.data = malloc(1); 
+    response.size = 0;
+
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_payload);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L); 
+    
+    res = curl_easy_perform(curl);
+    
+    long response_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+    if (res != CURLE_OK) {
+        fprintf(stderr, "ERROR: curl_easy_perform() failed for log: %s\n", curl_easy_strerror(res));
+    } else if (response_code != 201) {
+        fprintf(stderr, "ERROR: Log API returned status code %ld. Response: %s\n", 
+                 response_code, response.data ? response.data : "No response data");
+    }
+    
+    curl_easy_cleanup(curl);
+    curl_slist_free_all(headers);
+    free(response.data);
+    free(json_payload);
+    
+    return (res == CURLE_OK && response_code == 201) ? 0 : -1;
+}
+

@@ -1,4 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#endif
 #include "metrics.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,9 +39,11 @@ typedef unsigned long u_long;
 #include <sys/sysctl.h>
 #include <sys/param.h>
 #include <sys/mount.h>
-#include <ifaddrs.h>
 #include <net/if.h>
 #include <net/if_dl.h>
+#include <net/if_types.h>
+#include <net/if_var.h>
+#include <ifaddrs.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <mach/host_info.h>
@@ -350,10 +355,30 @@ int get_disk_metrics(SystemMetrics *metrics) {
 }
 
 int get_network_metrics(SystemMetrics *metrics) {
-    // TODO: Fix network metrics collection on macOS
     metrics->network_bytes_recv = 0;
     metrics->network_bytes_sent = 0;
-    
+
+    struct ifaddrs *ifap, *ifa;
+    if (getifaddrs(&ifap) != 0) {
+        return -1;
+    }
+
+    for (ifa = ifap; ifa != NULL; ifa = ifa->ifa_next) {
+        // Skip interfaces with no address
+        if (ifa->ifa_addr == NULL) continue;
+        // Skip loopback
+        if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+        // Only process link-layer (AF_LINK) entries — these carry the byte counters
+        if (ifa->ifa_addr->sa_family != AF_LINK) continue;
+
+        const struct if_data *ifd = (const struct if_data *)ifa->ifa_data;
+        if (ifd == NULL) continue;
+
+        metrics->network_bytes_recv += ifd->ifi_ibytes;
+        metrics->network_bytes_sent += ifd->ifi_obytes;
+    }
+
+    freeifaddrs(ifap);
     return 0;
 }
 
@@ -929,4 +954,3 @@ int collect_metrics(SystemMetrics *metrics) {
     
     return 0;
 }
-

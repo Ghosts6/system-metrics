@@ -13,7 +13,7 @@ from app.exceptions import APIError
 from app.models import SystemMetrics
 
 # Setup logging
-setup_logging(settings)
+setup_logging(settings, log_to_api_min_level=settings.log_to_api_min_level)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
