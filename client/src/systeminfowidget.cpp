@@ -234,3 +234,9 @@ void SystemInfoWidget::populateInfoTable(const QJsonObject &metrics)
     m_infoTable->setUpdatesEnabled(true); // Re-enable updates
     m_infoTable->viewport()->update(); // Force a repaint of the viewport
 }
+
+void SystemInfoWidget::clearInfo()
+{
+    m_infoTable->setRowCount(0);
+    m_statusLabel->setText("No system information");
+}

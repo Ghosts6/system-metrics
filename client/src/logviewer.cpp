@@ -405,3 +405,13 @@ void LogViewer::exportToJSON(const QString &filename)
     
     QMessageBox::information(this, "Export", QString("Exported %1 logs to %2").arg(m_currentLogs.size()).arg(filename));
 }
+
+void LogViewer::clearLogs()
+{
+    m_table->setRowCount(0);
+    m_currentLogs = QJsonArray();
+    m_currentPage = 1;
+    m_totalPages = 1;
+    m_totalItems = 0;
+    m_statusLabel->setText("No logs");
+}

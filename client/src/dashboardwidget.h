@@ -24,6 +24,7 @@ public:
 
 public slots:
     void updateMetrics(const QJsonObject &metrics);
+    void clearMetrics();
 
 private:
     void setupUI();

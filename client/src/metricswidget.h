@@ -29,6 +29,7 @@ public:
 
 public slots:
     void updateMetrics(const QJsonObject &metrics);
+    void clearMetrics();
 
 private:
     QLabel *m_cpuLabel;

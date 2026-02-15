@@ -17,7 +17,21 @@
 #include <QIcon>
 #include <QPixmap>
 #include <QWidgetAction>
-#include <QLabel>
+#include <QFileDialog>
+#include <QTextEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QDir>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QDateTime>
+#include <QFile>
+#include <QTextStream>
+#include <QComboBox>
+#include <QFrame>
+#include <QEventLoop>
 #include "apiclient.h"
 #include "metricswidget.h"
 #include "logviewer.h"
@@ -211,17 +225,360 @@ int main(int argc, char *argv[])
     QMenu *helpMenu = menuBar->addMenu("Help");
     QAction *aboutAction = helpMenu->addAction("About");
 
-    // --- TODO: Connect new actions ---
-    auto notImplemented = [&]() {
-        QMessageBox::information(&mainWindow, "Not Implemented", "This feature is not yet implemented.");
-    };
-
-    QObject::connect(exportAction, &QAction::triggered, notImplemented);
-    QObject::connect(clearCacheAction, &QAction::triggered, notImplemented);
-    QObject::connect(lightThemeAction, &QAction::triggered, notImplemented);
-    QObject::connect(darkThemeAction, &QAction::triggered, notImplemented);
-    QObject::connect(pingAction, &QAction::triggered, notImplemented);
-    QObject::connect(tracerouteAction, &QAction::triggered, notImplemented);
+    // Export Data functionality
+    QObject::connect(exportAction, &QAction::triggered, [=, &mainWindow]() {
+        QDialog exportDialog(&mainWindow);
+        exportDialog.setWindowTitle("Export Data");
+        exportDialog.setMinimumWidth(400);
+        
+        QVBoxLayout *layout = new QVBoxLayout(&exportDialog);
+        
+        QLabel *formatLabel = new QLabel("Export Format:", &exportDialog);
+        QComboBox *formatCombo = new QComboBox(&exportDialog);
+        formatCombo->addItem("JSON", "json");
+        formatCombo->addItem("Excel (CSV)", "csv");
+        
+        QLabel *dataLabel = new QLabel("Data Type:", &exportDialog);
+        QComboBox *dataCombo = new QComboBox(&exportDialog);
+        dataCombo->addItem("Live Metrics", "live");
+        dataCombo->addItem("Historical Metrics", "history");
+        dataCombo->addItem("Logs", "logs");
+        
+        layout->addWidget(formatLabel);
+        layout->addWidget(formatCombo);
+        layout->addWidget(dataLabel);
+        layout->addWidget(dataCombo);
+        
+        QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &exportDialog);
+        layout->addWidget(buttons);
+        
+        QObject::connect(buttons, &QDialogButtonBox::accepted, [=, &exportDialog]() {
+            QString format = formatCombo->currentData().toString();
+            QString dataType = dataCombo->currentData().toString();
+            
+            QString filter = format == "json" ? "JSON Files (*.json)" : "CSV Files (*.csv)";
+            QString extension = format == "json" ? ".json" : ".csv";
+            QString defaultName = QString("metrics_%1_%2%3")
+                .arg(dataType)
+                .arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"))
+                .arg(extension);
+            
+            QString fileName = QFileDialog::getSaveFileName(&exportDialog, "Save Export", 
+                QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/" + defaultName, filter);
+            
+            if (fileName.isEmpty()) return;
+            
+            QJsonObject exportData;
+            bool success = false;
+            
+            if (dataType == "live") {
+                // Fetch current live metrics
+                QEventLoop loop;
+                QJsonObject liveData;
+                QMetaObject::Connection conn = QObject::connect(apiClient, &ApiClient::liveMetricsReceived, [&](const QJsonObject &data) {
+                    liveData = data;
+                    loop.quit();
+                });
+                apiClient->fetchLiveMetrics();
+                QTimer::singleShot(10000, &loop, &QEventLoop::quit); // 10 second timeout
+                loop.exec();
+                QObject::disconnect(conn);
+                exportData = liveData;
+                success = !liveData.isEmpty();
+            } else if (dataType == "history") {
+                // Fetch historical metrics
+                QEventLoop loop;
+                QJsonObject historyData;
+                QMetaObject::Connection conn = QObject::connect(apiClient, &ApiClient::metricsHistoryReceived, [&](const QJsonObject &data) {
+                    historyData = data;
+                    loop.quit();
+                });
+                QDateTime endTime = QDateTime::currentDateTime();
+                QDateTime startTime = endTime.addDays(-7);
+                apiClient->fetchMetricsHistory(1, 1000, startTime, endTime);
+                QTimer::singleShot(10000, &loop, &QEventLoop::quit); // 10 second timeout
+                loop.exec();
+                QObject::disconnect(conn);
+                exportData = historyData;
+                success = !historyData.isEmpty();
+            } else if (dataType == "logs") {
+                // Fetch logs
+                QEventLoop loop;
+                QJsonObject logsData;
+                QMetaObject::Connection conn = QObject::connect(apiClient, &ApiClient::logsReceived, [&](const QJsonObject &data) {
+                    logsData = data;
+                    loop.quit();
+                });
+                apiClient->fetchLogs(1, 1000);
+                QTimer::singleShot(10000, &loop, &QEventLoop::quit); // 10 second timeout
+                loop.exec();
+                QObject::disconnect(conn);
+                exportData = logsData;
+                success = !logsData.isEmpty();
+            }
+            
+            if (!success || exportData.isEmpty()) {
+                QMessageBox::warning(&exportDialog, "Export Failed", "Failed to fetch data for export.");
+                return;
+            }
+            
+            QFile file(fileName);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QMessageBox::warning(&exportDialog, "Export Failed", "Cannot write to file: " + fileName);
+                return;
+            }
+            
+            QTextStream out(&file);
+            
+            if (format == "json") {
+                QJsonDocument doc(exportData);
+                out << doc.toJson();
+            } else {
+                // CSV export
+                if (exportData.contains("data") && exportData["data"].isArray()) {
+                    QJsonArray dataArray = exportData["data"].toArray();
+                    if (!dataArray.isEmpty()) {
+                        QJsonObject firstItem = dataArray[0].toObject();
+                        QStringList headers = firstItem.keys();
+                        out << headers.join(",") << "\n";
+                        
+                        for (const QJsonValue &value : dataArray) {
+                            QJsonObject obj = value.toObject();
+                            QStringList row;
+                            for (const QString &key : headers) {
+                                QString val = obj[key].toVariant().toString();
+                                val.replace(",", ";");
+                                val.replace("\n", " ");
+                                row << "\"" + val + "\"";
+                            }
+                            out << row.join(",") << "\n";
+                        }
+                    }
+                } else {
+                    // Single object export
+                    QStringList keys = exportData.keys();
+                    out << keys.join(",") << "\n";
+                    QStringList values;
+                    for (const QString &key : keys) {
+                        QString val = exportData[key].toVariant().toString();
+                        val.replace(",", ";");
+                        val.replace("\n", " ");
+                        values << "\"" + val + "\"";
+                    }
+                    out << values.join(",") << "\n";
+                }
+            }
+            
+            file.close();
+            QMessageBox::information(&exportDialog, "Export Complete", "Data exported successfully to:\n" + fileName);
+            exportDialog.accept();
+        });
+        
+        QObject::connect(buttons, &QDialogButtonBox::rejected, &exportDialog, &QDialog::reject);
+        
+        exportDialog.exec();
+    });
+    
+    // Clear Cache functionality
+    QObject::connect(clearCacheAction, &QAction::triggered, [=, &mainWindow]() {
+        int ret = QMessageBox::question(&mainWindow, "Clear Cache", 
+            "This will clear all cached data from widgets. Continue?",
+            QMessageBox::Yes | QMessageBox::No);
+        
+        if (ret == QMessageBox::Yes) {
+            dashboardWidget->clearMetrics();
+            metricsWidget->clearMetrics();
+            chartWidget->clearChart();
+            logViewer->clearLogs();
+            systemInfoWidget->clearInfo();
+            mainWindow.statusBar()->showMessage("Cache cleared", 2000);
+        }
+    });
+    
+    // Theme switching
+    QObject::connect(lightThemeAction, &QAction::triggered, [&mainWindow, &settings, lightThemeAction, darkThemeAction]() {
+        QString lightStyle = Style::getLightStyleSheet() + Style::getButtonStyle() + 
+                             Style::getProgressBarStyle() + Style::getTableStyle();
+        qApp->setStyleSheet(lightStyle);
+        lightThemeAction->setChecked(true);
+        darkThemeAction->setChecked(false);
+        settings.setValue("theme", "light");
+        mainWindow.statusBar()->showMessage("Light theme applied", 2000);
+    });
+    
+    QObject::connect(darkThemeAction, &QAction::triggered, [&mainWindow, &settings, lightThemeAction, darkThemeAction]() {
+        QString darkStyle = Style::getDarkGreenStyleSheet() + Style::getButtonStyle() + 
+                           Style::getProgressBarStyle() + Style::getTableStyle();
+        qApp->setStyleSheet(darkStyle);
+        darkThemeAction->setChecked(true);
+        lightThemeAction->setChecked(false);
+        settings.setValue("theme", "dark");
+        mainWindow.statusBar()->showMessage("Dark theme applied", 2000);
+    });
+    
+    // Load saved theme
+    QString savedTheme = settings.value("theme", "dark").toString();
+    if (savedTheme == "light") {
+        lightThemeAction->trigger();
+    } else {
+        darkThemeAction->trigger();
+    }
+    
+    // Ping tool
+    QObject::connect(pingAction, &QAction::triggered, [=, &mainWindow]() {
+        QDialog pingDialog(&mainWindow);
+        pingDialog.setWindowTitle("Ping Host");
+        pingDialog.setMinimumSize(600, 400);
+        
+        QVBoxLayout *layout = new QVBoxLayout(&pingDialog);
+        
+        QHBoxLayout *inputLayout = new QHBoxLayout();
+        QLabel *hostLabel = new QLabel("Host:", &pingDialog);
+        QLineEdit *hostEdit = new QLineEdit("google.com", &pingDialog);
+        QPushButton *pingButton = new QPushButton("Ping", &pingDialog);
+        
+        inputLayout->addWidget(hostLabel);
+        inputLayout->addWidget(hostEdit);
+        inputLayout->addWidget(pingButton);
+        
+        QTextEdit *outputText = new QTextEdit(&pingDialog);
+        outputText->setReadOnly(true);
+        outputText->setFont(QFont("Courier", 10));
+        
+        layout->addLayout(inputLayout);
+        layout->addWidget(new QLabel("Output:", &pingDialog));
+        layout->addWidget(outputText);
+        
+        QProcess *pingProcess = new QProcess(&pingDialog);
+        
+        QObject::connect(pingButton, &QPushButton::clicked, [hostEdit, outputText, pingButton, pingProcess]() {
+            QString host = hostEdit->text().trimmed();
+            if (host.isEmpty()) {
+                QMessageBox::warning(hostEdit->parentWidget(), "Invalid Input", "Please enter a hostname or IP address.");
+                return;
+            }
+            
+            outputText->clear();
+            outputText->append("Pinging " + host + "...\n");
+            pingButton->setEnabled(false);
+            
+            #ifdef Q_OS_WIN
+            pingProcess->start("ping", QStringList() << "-n" << "4" << host);
+            #else
+            pingProcess->start("ping", QStringList() << "-c" << "4" << host);
+            #endif
+        });
+        
+        QObject::connect(pingProcess, &QProcess::readyReadStandardOutput, [outputText, pingProcess]() {
+            outputText->append(QString::fromUtf8(pingProcess->readAllStandardOutput()));
+        });
+        
+        QObject::connect(pingProcess, &QProcess::readyReadStandardError, [outputText, pingProcess]() {
+            outputText->append(QString::fromUtf8(pingProcess->readAllStandardError()));
+        });
+        
+        QObject::connect(pingProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
+            [outputText, pingButton](int exitCode, QProcess::ExitStatus) {
+                if (pingButton && outputText) {
+                    pingButton->setEnabled(true);
+                    if (exitCode == 0) {
+                        outputText->append("\n✓ Ping completed successfully");
+                    } else {
+                        outputText->append("\n✗ Ping failed (exit code: " + QString::number(exitCode) + ")");
+                    }
+                }
+            });
+        
+        QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &pingDialog);
+        layout->addWidget(buttons);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, [pingProcess, &pingDialog]() {
+            if (pingProcess->state() != QProcess::NotRunning) {
+                pingProcess->kill();
+                pingProcess->waitForFinished(1000);
+            }
+            pingDialog.reject();
+        });
+        
+        pingDialog.exec();
+    });
+    
+    // Traceroute tool
+    QObject::connect(tracerouteAction, &QAction::triggered, [=, &mainWindow]() {
+        QDialog traceDialog(&mainWindow);
+        traceDialog.setWindowTitle("Traceroute Host");
+        traceDialog.setMinimumSize(600, 500);
+        
+        QVBoxLayout *layout = new QVBoxLayout(&traceDialog);
+        
+        QHBoxLayout *inputLayout = new QHBoxLayout();
+        QLabel *hostLabel = new QLabel("Host:", &traceDialog);
+        QLineEdit *hostEdit = new QLineEdit("google.com", &traceDialog);
+        QPushButton *traceButton = new QPushButton("Traceroute", &traceDialog);
+        
+        inputLayout->addWidget(hostLabel);
+        inputLayout->addWidget(hostEdit);
+        inputLayout->addWidget(traceButton);
+        
+        QTextEdit *outputText = new QTextEdit(&traceDialog);
+        outputText->setReadOnly(true);
+        outputText->setFont(QFont("Courier", 9));
+        
+        layout->addLayout(inputLayout);
+        layout->addWidget(new QLabel("Output:", &traceDialog));
+        layout->addWidget(outputText);
+        
+        QProcess *traceProcess = new QProcess(&traceDialog);
+        
+        QObject::connect(traceButton, &QPushButton::clicked, [hostEdit, outputText, traceButton, traceProcess]() {
+            QString host = hostEdit->text().trimmed();
+            if (host.isEmpty()) {
+                QMessageBox::warning(hostEdit->parentWidget(), "Invalid Input", "Please enter a hostname or IP address.");
+                return;
+            }
+            
+            outputText->clear();
+            outputText->append("Tracing route to " + host + "...\n");
+            traceButton->setEnabled(false);
+            
+            #ifdef Q_OS_WIN
+            traceProcess->start("tracert", QStringList() << host);
+            #else
+            traceProcess->start("traceroute", QStringList() << host);
+            #endif
+        });
+        
+        QObject::connect(traceProcess, &QProcess::readyReadStandardOutput, [outputText, traceProcess]() {
+            outputText->append(QString::fromUtf8(traceProcess->readAllStandardOutput()));
+        });
+        
+        QObject::connect(traceProcess, &QProcess::readyReadStandardError, [outputText, traceProcess]() {
+            outputText->append(QString::fromUtf8(traceProcess->readAllStandardError()));
+        });
+        
+        QObject::connect(traceProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
+            [outputText, traceButton](int exitCode, QProcess::ExitStatus) {
+                if (traceButton && outputText) {
+                    traceButton->setEnabled(true);
+                    if (exitCode == 0) {
+                        outputText->append("\n✓ Traceroute completed");
+                    } else {
+                        outputText->append("\n✗ Traceroute failed (exit code: " + QString::number(exitCode) + ")");
+                    }
+                }
+            });
+        
+        QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &traceDialog);
+        layout->addWidget(buttons);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, [traceProcess, &traceDialog]() {
+            if (traceProcess->state() != QProcess::NotRunning) {
+                traceProcess->kill();
+                traceProcess->waitForFinished(1000);
+            }
+            traceDialog.reject();
+        });
+        
+        traceDialog.exec();
+    });
     
     // Settings dialog
     SettingsDialog *settingsDialog = new SettingsDialog(&mainWindow);

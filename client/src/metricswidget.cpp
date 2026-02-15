@@ -485,3 +485,26 @@ QString MetricsWidget::formatBytes(qint64 bytes)
         return QString("%1 B").arg(bytes);
     }
 }
+
+void MetricsWidget::clearMetrics()
+{
+    m_hostnameLabel->setText("Hostname: -");
+    m_platformLabel->setText("Platform: -");
+    m_timestampLabel->setText("Timestamp: -");
+    m_cpuLabel->setText("CPU: 0%");
+    m_cpuBar->setValue(0);
+    m_gpuLabel->setText("GPU: 0%");
+    m_gpuBar->setValue(0);
+    m_memoryLabel->setText("Memory: 0%");
+    m_memoryBar->setValue(0);
+    m_diskLabel->setText("Disk: 0%");
+    m_diskBar->setValue(0);
+    m_networkLabel->setText("Network: -");
+    
+    m_cpuHistory.clear();
+    m_gpuHistory.clear();
+    m_memoryHistory.clear();
+    m_diskHistory.clear();
+    m_networkSentHistory.clear();
+    m_networkRecvHistory.clear();
+}

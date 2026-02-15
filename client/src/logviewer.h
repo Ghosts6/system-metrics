@@ -43,6 +43,7 @@ public:
 public slots:
     void updateLogs(const QJsonObject &response);
     void refreshLogs();
+    void clearLogs();
 
 signals:
     void requestLogs(int page, int pageSize, const QString &level,

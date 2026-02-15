@@ -594,3 +594,31 @@ QString DashboardWidget::formatNetworkSpeed(double bytesPerSecond)
         return QString("%1 B").arg(bytesPerSecond, 0, 'f', 0);
     }
 }
+
+void DashboardWidget::clearMetrics()
+{
+    m_hostnameLabel->setText("Hostname: -");
+    m_platformLabel->setText("Platform: -");
+    m_uptimeLabel->setText("Uptime: -");
+    m_cpuLabel->setText("0%");
+    m_cpuBar->setValue(0);
+    m_cpuDetailLabel->setText("-");
+    m_memoryLabel->setText("0%");
+    m_memoryBar->setValue(0);
+    m_memoryDetailLabel->setText("-");
+    m_diskLabel->setText("0%");
+    m_diskBar->setValue(0);
+    m_diskDetailLabel->setText("-");
+    m_networkSentLabel->setText("Sent: -");
+    m_networkRecvLabel->setText("Received: -");
+    m_statusLabel->setText("No data");
+    m_lastUpdateLabel->setText("Last update: -");
+    m_prevNetworkSent = 0;
+    m_prevNetworkRecv = 0;
+    
+    for (auto &widgets : m_gpuDisplayWidgets) {
+        widgets.nameLabel->setText("0%");
+        widgets.utilBar->setValue(0);
+        widgets.detailLabel->setText("Name: -");
+    }
+}

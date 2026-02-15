@@ -20,6 +20,7 @@ public:
 
 public slots:
     void updateSystemInfo(const QJsonObject &metrics);
+    void clearInfo();
 
 private:
     void setupUI();
