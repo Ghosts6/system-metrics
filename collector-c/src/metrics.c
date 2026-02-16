@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "logger.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -404,7 +405,7 @@ int get_cpu_metrics(SystemMetrics *metrics) {
     strncpy(metrics->cpu_vendor_id, vendor, sizeof(metrics->cpu_vendor_id) - 1);
 
     char brand[49] = {0};
-    for (int i = 0x80000002; i <= 0x80000004; ++i) {
+    for (unsigned int i = 0x80000002; i <= 0x80000004; ++i) {
         __cpuid(cpuInfo, i);
         memcpy(brand + (i - 0x80000002) * 16, cpuInfo, 16);
     }
@@ -713,7 +714,10 @@ int get_intel_gpu_metrics(SystemMetrics *metrics) {
     if (fp) {
         if (fgets(line, sizeof(line), fp)) {
             line[strcspn(line, "\n")] = 0;
-            strncpy(driver_version, line, sizeof(driver_version) - 1);
+            int written = snprintf(driver_version, sizeof(driver_version), "%s", line);
+            if ((size_t)written >= sizeof(driver_version)) {
+                log_message(LOG_LEVEL_WARNING, "Intel GPU driver version string was truncated.");
+            }
         }
         fclose(fp);
     }
@@ -763,8 +767,7 @@ int get_intel_gpu_metrics(SystemMetrics *metrics) {
         }
 
         // --- Driver Version ---
-        strncpy(gpu->driver_version, driver_version, sizeof(gpu->driver_version) - 1);
-        gpu->driver_version[sizeof(gpu->driver_version) - 1] = '\0';
+        snprintf(gpu->driver_version, sizeof(gpu->driver_version), "%s", driver_version);
 
         // --- Memory Total/Used---
         snprintf(path, sizeof(path), "/sys/class/drm/card%d/device/gt_total_lmem_bytes", i);

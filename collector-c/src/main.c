@@ -49,25 +49,65 @@ static void daemonize(void) {
     pid_t pid;
 
     pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS);
+    if (pid < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: first fork failed");
+        exit(EXIT_FAILURE);
+    }
+    if (pid > 0) exit(EXIT_SUCCESS); // Parent exits
 
-    if (setsid() < 0) exit(EXIT_FAILURE);
+    if (setsid() < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: setsid failed");
+        exit(EXIT_FAILURE);
+    }
 
     pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS);
+    if (pid < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: second fork failed");
+        exit(EXIT_FAILURE);
+    }
+    if (pid > 0) exit(EXIT_SUCCESS); // Parent of second fork exits
 
     umask(0);
-    chdir("/");
 
-    for (int x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
+    // Change the current working directory to the root
+    if (chdir("/") < 0) {
+        log_message(LOG_LEVEL_WARNING, "daemonize: chdir to / failed. Continuing...");
+    }
+
+    // Close all open file descriptors
+    long max_fd = sysconf(_SC_OPEN_MAX);
+    if (max_fd == -1) { // sysconf can fail, provide a reasonable fallback
+        max_fd = 1024;
+    }
+
+    for (int x = max_fd; x >= 0; x--) {
         close(x);
     }
 
-    open("/dev/null", O_RDWR);
-    dup(0);
-    dup(0);
+    // Redirect standard file descriptors to /dev/null
+    int fd = open("/dev/null", O_RDWR);
+    if (fd < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: open /dev/null failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (dup2(fd, STDIN_FILENO) < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: dup2 STDIN_FILENO failed");
+        exit(EXIT_FAILURE);
+    }
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: dup2 STDOUT_FILENO failed");
+        exit(EXIT_FAILURE);
+    }
+    if (dup2(fd, STDERR_FILENO) < 0) {
+        log_message(LOG_LEVEL_ERROR, "daemonize: dup2 STDERR_FILENO failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Close the original /dev/null descriptor if it's not one of 0, 1, 2
+    if (fd > STDERR_FILENO) {
+        close(fd);
+    }
 }
 #endif
 
