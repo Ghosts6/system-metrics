@@ -136,3 +136,6 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 This project is licensed under the MIT License.
 
 ## 🎥 Demo
+
+[SystemMetrics.mp4](https://github.com/user-attachments/assets/98b53d2b-c992-427e-affe-9edf8461ed82)
+
