@@ -59,13 +59,31 @@ jobs:
       if: runner.os == 'macOS'
       run: brew install curl
 
-    - name: Setup MinGW (Windows)
+    - name: Cache Chocolatey packages
       if: runner.os == 'Windows'
-      uses: egor-tensin/setup-mingw@v2
+      uses: actions/cache@v3
+      with:
+        path: C:\ProgramData\chocolatey\lib
+        key: ${{ runner.os }}-choco-${{ hashFiles('**/.github/workflows/ci.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-choco-
 
-    - name: Install dependencies (Windows)
+    - name: Install MinGW (Windows)
       if: runner.os == 'Windows'
-      run: choco install curl
+      run: |
+        choco install mingw --version=11.2.0.07112021 -y
+        echo "C:\ProgramData\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Install curl and set paths (Windows)
+      if: runner.os == 'Windows'
+      id: curl-paths
+      run: |
+        choco install curl
+        $CURL_DIR = (Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\curl\tools\curl-*-win64-mingw").FullName
+        $CURL_INCLUDE_PATH = Join-Path $CURL_DIR "include"
+        $CURL_LIB_PATH = Join-Path $CURL_DIR "lib"
+        echo "include_path=$CURL_INCLUDE_PATH" >> $env:GITHUB_OUTPUT
+        echo "lib_path=$CURL_LIB_PATH" >> $env:GITHUB_OUTPUT
 
     - name: Build collector (Linux/macOS)
       if: runner.os != 'Windows'
@@ -73,7 +91,7 @@ jobs:
 
     - name: Build collector (Windows)
       if: runner.os == 'Windows'
-      run: mingw32-make -f Makefile.win -C collector-c
+      run: mingw32-make -f Makefile.win -C collector-c "CFLAGS=-Wall -Wextra -std=c11 -O2 -I${{ steps.curl-paths.outputs.include_path }}" "LDFLAGS=-L${{ steps.curl-paths.outputs.lib_path }} -lcurl -lpdh -liphlpapi -lpsapi -lws2_32"
 
   build-client:
     runs-on: ubuntu-latest

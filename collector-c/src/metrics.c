@@ -8,17 +8,19 @@
 #include <string.h>
 
 #ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <pdh.h>
 #include <iphlpapi.h>
 #include <psapi.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <intrin.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+#endif
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
@@ -419,7 +421,7 @@ int get_cpu_metrics(SystemMetrics *metrics) {
         return -1;
     }
     
-    if (PdhAddCounter(query, L"\\Processor(_Total)\\% Processor Time", 0, &counter) != ERROR_SUCCESS) {
+    if (PdhAddCounter(query, "\\Processor(_Total)\\% Processor Time", 0, &counter) != ERROR_SUCCESS) {
         PdhCloseQuery(query);
         return -1;
     }
@@ -494,7 +496,7 @@ int get_network_metrics(SystemMetrics *metrics) {
         
         for (DWORD i = 0; i < ifTable->dwNumEntries; i++) {
             if (ifTable->table[i].dwType == MIB_IF_TYPE_ETHERNET || 
-                ifTable->table[i].dwType == MIB_IF_TYPE_IEEE80211) {
+                ifTable->table[i].dwType == IF_TYPE_IEEE80211) {
                 rx_bytes += ifTable->table[i].dwInOctets;
                 tx_bytes += ifTable->table[i].dwOutOctets;
             }
