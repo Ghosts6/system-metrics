@@ -195,8 +195,9 @@ The executable will be created as `system-metrics-client` in the build directory
 
 ### Menu Bar
 - **Logo & App Name**: Displayed at the start of the menu bar
-- **File Menu**: Settings and Exit options
-- **View Menu**: Refresh All option
+- **File Menu**: Settings, Export, Clear Cache, and Exit options
+- **View Menu**: Refresh All, Theme (Dark/Light) options
+- **Tools Menu**: Ping, Traceroute (for network diagnostics)
 - **Help Menu**: About dialog with application information and logo
 
 ## API Integration

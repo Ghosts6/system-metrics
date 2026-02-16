@@ -41,3 +41,52 @@ jobs:
       if: always()
       run: |
         docker compose down -v
+
+  build-collector:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y build-essential libcurl4-openssl-dev
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install curl
+
+    - name: Setup MinGW (Windows)
+      if: runner.os == 'Windows'
+      uses: egor-tensin/setup-mingw@v2
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: choco install curl
+
+    - name: Build collector (Linux/macOS)
+      if: runner.os != 'Windows'
+      run: make -C collector-c
+
+    - name: Build collector (Windows)
+      if: runner.os == 'Windows'
+      run: mingw32-make -f Makefile.win -C collector-c
+
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Qt dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qt6-base-dev qt6-charts-dev cmake build-essential
+
+    - name: Configure and build Qt client
+      run: |
+        cd client
+        cmake -B build
+        cmake --build build

@@ -72,13 +72,18 @@ Installs to `/usr/local/bin/collector`.
 - `-i, --interval SEC`: Collection interval in seconds (default: `5`).
 - `-l, --logfile FILE`: Path to log file (default: `stderr`).
 - `-c, --config FILE`: Path to configuration file (default: `/etc/system-metrics/collector.conf`).
+- `-P, --log-to-api`: Send logs to the backend API.
+- `-A, --api-log-level LEVEL`: Minimum log level for API (INFO, WARNING, ERROR, DEBUG).
 - `-d, --daemon`: Run as a background daemon (Linux/macOS only).
 - `-o, --output`: Output JSON to stdout instead of sending to API.
+- `-v, --version`: Show version information.
 - `-h, --help`: Show this help message.
 
 ### macOS Native Execution
 
 For macOS, an automated script `run-native.sh` is provided in the `collector-c` directory to simplify building and running the collector directly on the host. This ensures accurate host-level metric collection.
+
+The script automatically builds the collector and starts it with default settings, sending metrics to `http://localhost:8000` and enabling API logging (using flags `-P -A INFO`). You can override these defaults by passing your own arguments, which will be appended. For example, providing a different `-u` flag will override the default URL.
 
 **Usage:**
 ```bash
@@ -165,7 +170,6 @@ The collector gathers the following system metrics:
     *   Disk Usage Percentage
 *   **Network:**
     *   Bytes Sent and Received (bytes)
-    *   **Note:** Network metrics are temporarily disabled on macOS due to ongoing development and compatibility issues.
 *   **System Information:**
     *   Hostname
     *   Platform (Operating System)

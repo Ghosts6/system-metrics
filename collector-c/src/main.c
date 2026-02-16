@@ -34,6 +34,7 @@ static void print_usage(const char *program_name) {
     printf("  -A, --api-log-level LEVEL  Minimum log level for API (INFO, WARNING, ERROR, DEBUG)\n");
     printf("  -d, --daemon        Run as a background daemon\n");
     printf("  -o, --output        Output JSON to stdout instead of sending to API\n");
+    printf("  -v, --version       Show version information\n");
     printf("  -h, --help          Show this help message\n");
     printf("\n");
     printf("Examples:\n");
@@ -98,6 +99,7 @@ int main(int argc, char *argv[]) {
         {"api-log-level", required_argument, 0, 'A'},
         {"daemon", no_argument, 0, 'd'},
         {"output", no_argument, 0, 'o'},
+        {"version", no_argument, 0, 'v'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -105,7 +107,7 @@ int main(int argc, char *argv[]) {
     int opt;
     int option_index = 0;
     
-    while ((opt = getopt_long(argc, argv, "c:u:i:l:PA:doh", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c:u:i:l:PA:dovh", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 free(config_file);
@@ -134,6 +136,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'h':
                 print_usage(argv[0]);
+                return 0;
+            case 'v':
+                printf("System Metrics Collector version 1.0.0\n");
                 return 0;
             default:
                 print_usage(argv[0]);

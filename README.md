@@ -75,7 +75,11 @@ This will ensure the collector gathers metrics directly from your macOS host. Se
 1. Default URL is `http://localhost:8000`
 2. Click **"Connect"** to fetch data
 3. Click **"Start Auto-Refresh"** for live updates (5s interval)
-4. Switch between **"Metrics"** and **"Logs"** tabs
+4. Explore different views: **Dashboard**, **Live Metrics**, **Historical Charts**, **Logs**, and **System Info**.
+5. Use **File → Export** to save collected data.
+6. **File → Clear Cache** to remove stored metrics and logs.
+7. Switch themes via **View → Theme** (supports Dark and Light modes).
+8. Access network diagnostic tools with **Tools → Ping/Traceroute**.
 
 ## Features
 
