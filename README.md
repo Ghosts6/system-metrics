@@ -137,4 +137,5 @@ This project is licensed under the MIT License.
 
 ## 🎥 Demo
 
-[SystemMetrics.webm](https://github.com/user-attachments/assets/395bd8fd-478c-486a-8109-ffb48b98efd0)
+[SystemMetrics.webm](https://github.com/user-attachments/assets/c8b06c70-19c6-490b-8032-6475d9fad3ab)
+
